@@ -1,10 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import AppRouter from './routes/AppRoutes.tsx' 
-import './styles/global.css'    
+import { AppRoutes } from './routes/AppRoutes'
+import { AuthProvider } from './context/AuthContext' // Asegúrate de que el nombre del export sea exacto
+import './styles/global.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AppRouter />
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   </React.StrictMode>,
 )
