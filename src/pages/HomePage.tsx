@@ -68,14 +68,19 @@ function ProductCard({ product, onClick }: { product: Product; onClick: () => vo
   return (
     <button
       onClick={onClick}
-      className="shrink-0 basis-[calc(25%-12px)] min-w-[220px] bg-[#1f2326] border border-gray-800 p-4 text-left hover:border-[#ff4655]/50 hover:-translate-y-0.5 transition-all group relative"
+      className="shrink-0 basis-[calc(25%-12px)] min-w-[280px] bg-[#1f2326] border border-gray-800 p-4 text-left hover:border-[#ff4655]/50 hover:-translate-y-0.5 transition-all group relative"
       style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}
     >
       <div className="absolute top-0 right-0 text-[9px] font-bold uppercase tracking-wider px-2 py-1" style={{ color: tier.color, background: `${tier.color}1a` }}>
         {tier.label}
       </div>
-      <div className="w-full h-28 bg-black/20 flex items-center justify-center mb-3 mt-3">
-        <div className="w-8 h-8 border-2 border-gray-700 rotate-45 group-hover:border-[#ff4655] transition-colors" />
+      <div className="w-full h-36 bg-black/20 flex items-center justify-center mb-3 mt-3">
+        <img
+          src={product.image}
+          alt={product.name}
+          className="max-w-full max-h-full object-contain"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+        />
       </div>
       <div className="text-sm font-semibold text-white truncate">{product.name}</div>
       <div className="text-[11px] text-gray-500 mt-0.5 uppercase tracking-wide">{product.category}</div>
@@ -173,7 +178,7 @@ export const HomePage = () => {
 
       <HeroBanner />
 
-      <div className="px-6 sm:px-10 py-12 max-w-6xl mx-auto">
+      <div className="px-6 sm:px-10 py-12 max-w-7xl mx-auto">
         <ProductRow title="Más vendidos" products={topSellers} onSelect={setSelected} />
         <ProductRow title="Recién agregados" products={newArrivals} onSelect={setSelected} />
         <ProductRow title="Últimas unidades" products={lastUnits} onSelect={setSelected} />
@@ -192,11 +197,17 @@ export const HomePage = () => {
               </button>
             </div>
             <div className="px-6 pt-3 pb-6">
-              <div className="w-full h-32 bg-black/20 flex items-center justify-center mb-4">
-                <div className="w-10 h-10 border-2 border-gray-700 rotate-45" />
+              <div className="w-full h-48 bg-black/20 flex items-center justify-center mb-4">
+                <img
+                  src={selected.image}
+                  alt={selected.name}
+                  className="max-w-full max-h-full object-contain"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
               </div>
               <div className="text-sm font-semibold text-white">{selected.name}</div>
               <div className="text-[11px] text-gray-500 uppercase tracking-wide mt-0.5">{selected.category}</div>
+              <p className="text-gray-400 text-xs leading-relaxed mt-3">{selected.description}</p>
               <div className="flex items-center justify-between mt-4">
                 <span className="text-xl font-bold text-white font-mono">{fmt(selected.price)}</span>
                 <span className={`text-xs font-bold uppercase ${selected.stock > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
