@@ -1,3 +1,22 @@
+import type { Product } from "../types/product";
+
+import foto1 from "../assets/products/foto1.png";
+import foto2 from "../assets/products/foto2.png";
+import foto3 from "../assets/products/foto3.png";
+import foto4 from "../assets/products/foto4.png";
+import foto5 from "../assets/products/foto5.png";
+import foto6 from "../assets/products/foto6.png";
+import foto7 from "../assets/products/foto7.png";
+import foto8 from "../assets/products/foto8.png";
+import foto9 from "../assets/products/foto9.png";
+import foto10 from "../assets/products/foto10.png";
+import foto11 from "../assets/products/foto11.png";
+import foto12 from "../assets/products/foto12.png";
+import foto13 from "../assets/products/foto13.png";
+import foto14 from "../assets/products/foto14.png";
+import foto15 from "../assets/products/foto15.png";
+import foto16 from "../assets/products/foto16.png";
+
 export async function getPublicProducts(): Promise<Product[]> {
   return mockProducts;
 }
@@ -35,7 +54,7 @@ export const mockProducts: Product[] = [
   },
   {
     id: "PRD-004",
-    name: "Monitor LG UltraWide 27\"",
+    name: 'Monitor LG UltraWide 27"',
     category: "Electrónicos",
     price: 399,
     stock: 8,

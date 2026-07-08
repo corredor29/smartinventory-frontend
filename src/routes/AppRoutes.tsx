@@ -131,8 +131,15 @@ export const AppRoutes: React.FC = () => {
 
         {/* Grupo de Rutas Protegidas de Operación */}
         <Route element={<ProtectedRoute />}>
-          <Route path="/*" element={<MainLayout />} />
+          <Route path="/dashboard" element={<MainLayout />} />
+          <Route path="/armeria" element={<MainLayout />} />
+          <Route path="/almacenamiento" element={<MainLayout />} />
+          <Route path="/ventas" element={<MainLayout />} />
+          <Route path="/economia" element={<MainLayout />} />
+          <Route path="/killjoy-bot" element={<MainLayout />} />
+          <Route path="/unauthorized" element={<MainLayout />} />
         </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
