@@ -1,12 +1,10 @@
 import type { CartItem } from '../context/CartContext';
+import type { PaymentMethod } from '../types/order';
+import { fmtCurrency } from '../utils/currency';
 
-export type PaymentMethod = 'efectivo' | 'tarjeta';
+export type { PaymentMethod };
 
 const CLIP_BTN = 'polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px)';
-
-function fmt(n: number) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
-}
 
 interface CheckoutInvoiceProps {
   invoiceId: string;
@@ -96,7 +94,7 @@ export function CheckoutInvoice({
                 </div>
                 <span className="text-sm font-mono text-gray-400 text-center w-12">{quantity}</span>
                 <span className="text-sm font-mono text-[#00ece0] text-right w-24">
-                  {fmt(product.price * quantity)}
+                  {fmtCurrency(product.price * quantity)}
                 </span>
               </div>
             ))}
@@ -105,15 +103,15 @@ export function CheckoutInvoice({
           <div className="bg-[#0f1923]/50 border border-gray-800/60 p-4 space-y-2 mb-8">
             <div className="flex justify-between text-xs font-mono">
               <span className="text-gray-500 uppercase tracking-wider">Subtotal ({totalItems} uds)</span>
-              <span className="text-white">{fmt(subtotal)}</span>
+              <span className="text-white">{fmtCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between text-xs font-mono">
               <span className="text-gray-500 uppercase tracking-wider">Impuestos</span>
-              <span className="text-white">{fmt(tax)}</span>
+              <span className="text-white">{fmtCurrency(tax)}</span>
             </div>
             <div className="flex justify-between pt-2 border-t border-gray-800">
               <span className="text-xs font-mono text-gray-400 uppercase tracking-widest">Total a pagar</span>
-              <span className="text-2xl font-black text-white font-mono">{fmt(total)}</span>
+              <span className="text-2xl font-black text-white font-mono">{fmtCurrency(total)}</span>
             </div>
           </div>
 
