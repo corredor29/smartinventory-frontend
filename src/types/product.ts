@@ -1,5 +1,3 @@
-<<<<<<< Updated upstream
-=======
 export interface Product {
   id: string;
   name: string;
@@ -12,4 +10,4 @@ export interface Product {
   /** Descripción corta que se muestra en el modal de detalle */
   description: string;
 }
->>>>>>> Stashed changes
+
