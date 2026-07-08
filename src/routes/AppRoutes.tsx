@@ -4,6 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { ProtectedRoute } from './ProtectedRoute';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
+import { CartPage } from '../pages/CartPage';
+import { OrdersPage } from '../pages/OrdersPage';
+import { InvoicesPage } from '../pages/InvoicesPage';
 
 // Componentes Placeholder para las Vistas Solicitadas
 const Dashboard = () => <div className="text-white p-6 bg-[#1f2326] border-l-4 border-[#ff4655]">Panel General // THE RANGE</div>;
@@ -19,12 +22,12 @@ const MainLayout: React.FC = () => {
   const { user, logout } = useAuth();
 
   const navItems = [
-    { path: '/dashboard', label: 'The Range', desc: 'Dashboard' },
-    { path: '/armeria', label: 'Armería', desc: 'Catálogo' },
+    { path: '/dashboard', label: 'The Range', desc: 'Dashboard', roles: ['Admin', 'Operator'] as const },
+    { path: '/armeria', label: 'Armería', desc: 'Catálogo', roles: ['Admin', 'Operator'] as const },
     { path: '/almacenamiento', label: 'Almacenamiento', desc: 'Inventario', roles: ['Admin'] as const },
-    { path: '/ventas', label: 'Historial Partidas', desc: 'Ventas' },
-    { path: '/economia', label: 'Economía', desc: 'Facturas' },
-    { path: '/killjoy-bot', label: 'Asistente Táctico', desc: 'Killjoy Bot' },
+    { path: '/ventas', label: 'Historial Partidas', desc: 'Ventas', roles: ['Admin', 'Operator'] as const },
+    { path: '/economia', label: 'Economía', desc: 'Facturas', roles: ['Admin', 'Operator'] as const },
+    { path: '/killjoy-bot', label: 'Asistente Táctico', desc: 'Killjoy Bot', roles: ['Admin', 'Operator'] as const },
   ];
 
   return (
@@ -41,8 +44,7 @@ const MainLayout: React.FC = () => {
           {/* Menú de Compra / Navegación */}
           <nav className="p-4 space-y-2">
             {navItems.map((item) => {
-              // Filtrar links si el rol del usuario no aplica
-              if (item.roles && user && !item.roles.includes(user.role as any)) return null;
+              if (item.roles && user && !item.roles.includes(user.role)) return null;
 
               return (
                 <NavLink
@@ -129,8 +131,15 @@ export const AppRoutes: React.FC = () => {
         {/* Ruta Pública de Autenticación (login / registro) */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Grupo de Rutas Protegidas de Operación */}
-        <Route element={<ProtectedRoute />}>
+        {/* Rutas protegidas del cliente (carrito, pedidos, facturas) */}
+        <Route element={<ProtectedRoute allowedRoles={['Client']} />}>
+          <Route path="/carrito" element={<CartPage />} />
+          <Route path="/pedidos" element={<OrdersPage />} />
+          <Route path="/facturas" element={<InvoicesPage />} />
+        </Route>
+
+        {/* Grupo de Rutas Protegidas de Operación (Admin / Operator) */}
+        <Route element={<ProtectedRoute allowedRoles={['Admin', 'Operator']} />}>
           <Route path="/dashboard" element={<MainLayout />} />
           <Route path="/armeria" element={<MainLayout />} />
           <Route path="/almacenamiento" element={<MainLayout />} />

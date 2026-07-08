@@ -1,14 +1,25 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import { mockProducts } from '../api/productApi';
 import transitionGif from '../assets/register-transition.gif';
 
 type Mode = 'login' | 'register';
 type OverlayStage = 'idle' | 'covering' | 'covered' | 'revealing';
 
+interface LoginLocationState {
+  from?: { pathname: string };
+  intent?: 'buy';
+  productId?: string;
+}
+
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+  const { addToCart } = useCart();
+  const loginState = (location.state as LoginLocationState) ?? {};
 
   const [mode, setMode] = useState<Mode>('login');
   const [overlayMounted, setOverlayMounted] = useState(false);
@@ -63,15 +74,31 @@ export const LoginPage = () => {
     try {
       // TODO: reemplazar por la llamada real a authApi.ts (login/register contra el backend .NET)
       await new Promise((r) => setTimeout(r, 600));
-      const role = email.toLowerCase().includes('asesor') ? 'Operator' : 'Admin';
+      const emailLower = email.toLowerCase();
+      const role = emailLower.includes('asesor')
+        ? 'Operator'
+        : emailLower.includes('admin')
+          ? 'Admin'
+          : 'Client';
       login('mock-token', {
         id: 'usr-1',
-        username: email.split('@')[0] || 'agente',
+        username: email.split('@')[0] || 'cliente',
         email,
-        role: role as 'Admin' | 'Operator',
+        role,
         agentName: name || undefined,
       });
-      navigate('/dashboard');
+
+      if (role === 'Client') {
+        if (loginState.intent === 'buy' && loginState.productId) {
+          const product = mockProducts.find((p) => p.id === loginState.productId);
+          if (product) addToCart(product);
+          navigate('/carrito');
+        } else {
+          navigate(loginState.from?.pathname || '/');
+        }
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo procesar la solicitud');
     } finally {
