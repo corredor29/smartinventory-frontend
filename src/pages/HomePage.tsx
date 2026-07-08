@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mockProducts } from '../api/productApi';
+import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
+import { ClientNavbar } from '../components/ClientNavbar';
 import type { Product } from '../types/product';
 
 // Paleta: #0f1923 · #ff4655 · #00ece0 · #1f2326
@@ -25,38 +28,6 @@ function stockLevel(stock: number): { label: string; pct: number; color: string 
   if (stock <= 15) return { label: 'BAJO', pct: 40, color: '#fbbf24' };
   if (stock <= 40) return { label: 'DISPONIBLE', pct: 70, color: '#00ece0' };
   return { label: 'FULL STOCK', pct: 100, color: '#34d399' };
-}
-
-// ─── Barra de estado (estilo menú del juego) ─────────────────────────────────
-
-function StatusBar() {
-  const items = [
-    'STORE ABIERTA // Fase de compra activa',
-    'Envío express disponible en Bucaramanga',
-    'Garantía táctica en todos los equipos',
-    'Nuevo lote de electrodomésticos en inventario',
-  ];
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setTick((i) => (i + 1) % items.length), 4000);
-    return () => clearInterval(t);
-  }, [items.length]);
-
-  return (
-    <div className="bg-[#16191b] border-b border-gray-800/80 px-6 sm:px-10 py-1.5 flex items-center justify-between gap-4 overflow-hidden">
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[10px] font-mono text-emerald-400 uppercase tracking-widest">En línea</span>
-      </div>
-      <p className="text-[10px] font-mono text-gray-500 uppercase tracking-wider truncate hidden sm:block">
-        {items[tick]}
-      </p>
-      <span className="text-[10px] font-mono text-gray-600 uppercase tracking-widest shrink-0">
-        REG: <span className="text-gray-400">LATAM-BGA</span>
-      </span>
-    </div>
-  );
 }
 
 // ─── Hero ────────────────────────────────────────────────────────────────────
@@ -308,10 +279,24 @@ function ProductRow({
 
 export const HomePage = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
   const [products, setProducts] = useState<Product[]>([]);
   const [selected, setSelected] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('Todos');
+  const [addedFeedback, setAddedFeedback] = useState<string | null>(null);
+
+  const handleBuy = (product: Product) => {
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: { pathname: '/' }, intent: 'buy', productId: product.id } });
+      return;
+    }
+    if (product.stock <= 0) return;
+    addToCart(product);
+    setAddedFeedback(product.id);
+    setTimeout(() => setAddedFeedback(null), 2000);
+  };
 
   useEffect(() => {
     setProducts(mockProducts);
@@ -348,42 +333,7 @@ export const HomePage = () => {
 
   return (
     <div className="min-h-screen bg-[#0f1923] font-sans">
-      {/* Header */}
-      <header className="bg-[#1f2326] border-b border-gray-800 sticky top-0 z-40">
-        <div className="px-6 sm:px-10 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 bg-[#ff4655] rotate-45 flex items-center justify-center flex-shrink-0">
-              <div className="w-3 h-3 bg-[#0f1923] -rotate-45" />
-            </div>
-            <div className="min-w-0">
-              <span className="text-white font-bold text-lg tracking-tight font-mono block leading-none">
-                SMART<span className="text-[#ff4655]">//INV</span>
-              </span>
-              <span className="text-[9px] text-gray-500 uppercase tracking-[0.25em] font-mono hidden sm:block">
-                Electrodomésticos · Estilo Táctico
-              </span>
-            </div>
-          </div>
-
-          <div className="hidden md:flex items-center gap-6 text-[10px] font-mono uppercase tracking-widest text-gray-500">
-            <button onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-[#00ece0] transition-colors">
-              Catálogo
-            </button>
-            <button onClick={() => document.getElementById('ventajas')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-[#00ece0] transition-colors">
-              Ventajas
-            </button>
-          </div>
-
-          <button
-            onClick={() => navigate('/login')}
-            className="shrink-0 px-4 py-2 bg-[#ff4655] hover:bg-[#e63e4c] text-white text-xs font-bold uppercase tracking-wide transition-colors"
-            style={{ clipPath: CLIP_BTN }}
-          >
-            Acceso Agente
-          </button>
-        </div>
-        <StatusBar />
-      </header>
+      <ClientNavbar />
 
       <HeroBanner />
 
@@ -484,10 +434,10 @@ export const HomePage = () => {
             © 2026 Smart Inventory · Electrodomésticos con estilo táctico
           </p>
           <button
-            onClick={() => navigate('/login')}
+            onClick={() => navigate(isAuthenticated ? '/carrito' : '/login')}
             className="text-[10px] font-mono uppercase tracking-widest text-[#00ece0] hover:text-white transition-colors"
           >
-            Panel de agente →
+            {isAuthenticated ? 'Ver carrito →' : 'Panel de agente →'}
           </button>
         </div>
       </footer>
@@ -552,11 +502,18 @@ export const HomePage = () => {
               </div>
 
               <button
-                onClick={() => navigate('/login')}
-                className="w-full mt-5 py-3 bg-[#ff4655] hover:bg-[#e63e4c] text-white text-sm font-bold uppercase tracking-widest transition-colors"
+                onClick={() => handleBuy(selected)}
+                disabled={selected.stock <= 0}
+                className="w-full mt-5 py-3 bg-[#ff4655] hover:bg-[#e63e4c] disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-bold uppercase tracking-widest transition-colors"
                 style={{ clipPath: CLIP_BTN }}
               >
-                Acceso agente para comprar
+                {selected.stock <= 0
+                  ? 'Agotado'
+                  : !isAuthenticated
+                    ? 'Iniciar sesión para comprar'
+                    : addedFeedback === selected.id
+                      ? '✓ Agregado al carrito'
+                      : 'Agregar al carrito'}
               </button>
             </div>
           </div>
