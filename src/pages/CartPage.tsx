@@ -3,36 +3,36 @@ import { useNavigate } from 'react-router-dom';
 import { ClientNavbar } from '../components/ClientNavbar';
 import { CheckoutInvoice, type PaymentMethod } from '../components/CheckoutInvoice';
 import { useCart, type CartItem } from '../context/CartContext';
+import { generateInvoiceId, generateOrderId, useOrders } from '../context/OrdersContext';
+import { useAuth } from '../context/AuthContext';
+import { fmtCurrency } from '../utils/currency';
 
 const CLIP_BTN = 'polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px)';
 
 type CheckoutStep = 'cart' | 'invoice' | 'success';
 
-function fmt(n: number) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
-}
-
-function generateInvoiceId() {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const seq = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `PRE-FAC-${date}-${seq}`;
+function generateCheckoutInvoiceId() {
+  return generateInvoiceId();
 }
 
 export function CartPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { items, totalPrice, totalItems, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { addOrder } = useOrders();
 
   const [step, setStep] = useState<CheckoutStep>('cart');
   const [orderSnapshot, setOrderSnapshot] = useState<CartItem[]>([]);
   const [invoiceId, setInvoiceId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [completedOrderId, setCompletedOrderId] = useState('');
   const [completedTotal, setCompletedTotal] = useState(0);
   const [completedPayment, setCompletedPayment] = useState<PaymentMethod | null>(null);
 
   const handleConfirmCheckout = () => {
     setOrderSnapshot(items.map((item) => ({ ...item })));
-    setInvoiceId(generateInvoiceId());
+    setInvoiceId(generateCheckoutInvoiceId());
     setPaymentMethod(null);
     setStep('invoice');
   };
@@ -43,16 +43,43 @@ export function CartPage() {
   };
 
   const handleFinalizePurchase = async () => {
-    if (!paymentMethod || orderSnapshot.length === 0) return;
+    if (!paymentMethod || orderSnapshot.length === 0 || !user) return;
 
     setIsProcessing(true);
     try {
       await new Promise((resolve) => setTimeout(resolve, 900));
-      const snapshotTotal = orderSnapshot.reduce(
+
+      const subtotal = orderSnapshot.reduce(
         (sum, item) => sum + item.product.price * item.quantity,
         0,
       );
-      setCompletedTotal(snapshotTotal);
+      const tax = 0;
+      const total = subtotal + tax;
+      const orderId = generateOrderId();
+
+      addOrder({
+        id: orderId,
+        invoiceId,
+        userId: user.id,
+        items: orderSnapshot.map(({ product, quantity }) => ({
+          productId: product.id,
+          productName: product.name,
+          category: product.category,
+          image: product.image,
+          unitPrice: product.price,
+          quantity,
+        })),
+        totalItems: orderSnapshot.reduce((sum, item) => sum + item.quantity, 0),
+        subtotal,
+        tax,
+        total,
+        paymentMethod,
+        status: 'confirmado',
+        createdAt: new Date().toISOString(),
+      });
+
+      setCompletedOrderId(orderId);
+      setCompletedTotal(total);
       setCompletedPayment(paymentMethod);
       clearCart();
       setStep('success');
@@ -107,14 +134,17 @@ export function CartPage() {
             <div className="text-emerald-400 font-mono text-xs uppercase tracking-[0.3em] mb-2">
               Compra realizada con éxito
             </div>
+            <p className="text-gray-500 text-sm font-mono mb-1">
+              Pedido: {completedOrderId}
+            </p>
             <p className="text-white text-lg font-semibold mb-1">
-              Total pagado: {fmt(completedTotal)}
+              Total pagado: {fmtCurrency(completedTotal)}
             </p>
             <p className="text-gray-500 text-sm font-mono mb-2">
               Método: {completedPayment === 'efectivo' ? 'Efectivo' : 'Tarjeta'}
             </p>
             <p className="text-gray-600 text-xs font-mono max-w-sm mx-auto mb-8">
-              Tu pedido ha sido registrado. Recibirás la confirmación cuando se conecte el backend.
+              Tu pedido ha sido registrado. Puedes consultarlo en Mis Pedidos y Facturas.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
@@ -180,7 +210,7 @@ export function CartPage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-white truncate">{product.name}</div>
                   <div className="text-[10px] text-gray-500 uppercase tracking-widest font-mono mt-0.5">{product.category}</div>
-                  <div className="text-sm font-bold text-white font-mono mt-2">{fmt(product.price)}</div>
+                  <div className="text-sm font-bold text-white font-mono mt-2">{fmtCurrency(product.price)}</div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -202,7 +232,7 @@ export function CartPage() {
 
                 <div className="text-right shrink-0 hidden sm:block">
                   <div className="text-[9px] font-mono text-gray-600 uppercase tracking-widest">Subtotal</div>
-                  <div className="text-sm font-bold text-[#00ece0] font-mono">{fmt(product.price * quantity)}</div>
+                  <div className="text-sm font-bold text-[#00ece0] font-mono">{fmtCurrency(product.price * quantity)}</div>
                 </div>
 
                 <button
@@ -218,7 +248,7 @@ export function CartPage() {
             <div className="bg-[#1f2326] border border-gray-800 p-6 mt-6">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-mono text-gray-500 uppercase tracking-widest">Total del pedido</span>
-                <span className="text-2xl font-black text-white font-mono">{fmt(totalPrice)}</span>
+                <span className="text-2xl font-black text-white font-mono">{fmtCurrency(totalPrice)}</span>
               </div>
               <p className="text-[10px] text-gray-600 font-mono mb-4 uppercase tracking-wider">
                 Paso 1 de 2 — Revisión del carrito

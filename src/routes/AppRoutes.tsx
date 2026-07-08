@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, type UserRole } from '../context/AuthContext';
 import { ProtectedRoute } from './ProtectedRoute';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
@@ -22,12 +22,12 @@ const MainLayout: React.FC = () => {
   const { user, logout } = useAuth();
 
   const navItems = [
-    { path: '/dashboard', label: 'The Range', desc: 'Dashboard', roles: ['Admin', 'Operator'] as const },
-    { path: '/armeria', label: 'Armería', desc: 'Catálogo', roles: ['Admin', 'Operator'] as const },
-    { path: '/almacenamiento', label: 'Almacenamiento', desc: 'Inventario', roles: ['Admin'] as const },
-    { path: '/ventas', label: 'Historial Partidas', desc: 'Ventas', roles: ['Admin', 'Operator'] as const },
-    { path: '/economia', label: 'Economía', desc: 'Facturas', roles: ['Admin', 'Operator'] as const },
-    { path: '/killjoy-bot', label: 'Asistente Táctico', desc: 'Killjoy Bot', roles: ['Admin', 'Operator'] as const },
+    { path: '/dashboard', label: 'The Range', desc: 'Dashboard', roles: ['Admin', 'Operator'] as UserRole[] },
+    { path: '/armeria', label: 'Armería', desc: 'Catálogo', roles: ['Admin', 'Operator'] as UserRole[] },
+    { path: '/almacenamiento', label: 'Almacenamiento', desc: 'Inventario', roles: ['Admin'] as UserRole[] },
+    { path: '/ventas', label: 'Historial Partidas', desc: 'Ventas', roles: ['Admin', 'Operator'] as UserRole[] },
+    { path: '/economia', label: 'Economía', desc: 'Facturas', roles: ['Admin', 'Operator'] as UserRole[] },
+    { path: '/killjoy-bot', label: 'Asistente Táctico', desc: 'Killjoy Bot', roles: ['Admin', 'Operator'] as UserRole[] },
   ];
 
   return (
