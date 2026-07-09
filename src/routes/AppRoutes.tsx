@@ -5,12 +5,10 @@ import { ProtectedRoute } from './ProtectedRoute';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { AdminLoginPage } from '../pages/AdminLoginPage';
+import { DashboardPage } from '../pages/DashboardPage';
 import { CartPage } from '../pages/CartPage';
 import { OrdersPage } from '../pages/OrdersPage';
 import { InvoicesPage } from '../pages/InvoicesPage';
-
-// Componentes Placeholder para las Vistas Solicitadas
-const Dashboard = () => <div className="text-white p-6 bg-[#1f2326] border-l-4 border-[#ff4655]">Panel General // THE RANGE</div>;
 const Armeria = () => <div className="text-white p-6 bg-[#1f2326] border-l-4 border-[#00ece0]">Módulo de Armas // CATÁLOGO DE PRODUCTOS</div>;
 const Almacenamiento = () => <div className="text-white p-6 bg-[#1f2326] border border-[#ff4655]/30">Sitio de Almacenamiento // INVENTARIO</div>;
 const HistorialPartidas = () => <div className="text-white p-6 bg-[#1f2326]">Historial de Partidas // REGISTRO DE VENTAS</div>;
@@ -101,7 +99,7 @@ const MainLayout: React.FC = () => {
         {/* Contenido Dinámico de las Vistas */}
         <div className="p-8 flex-1">
           <Routes>
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/armeria" element={<Armeria />} />
             <Route path="/ventas" element={<HistorialPartidas />} />
             <Route path="/economia" element={<Economia />} />
