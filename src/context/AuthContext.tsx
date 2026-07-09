@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
 // Roles permitidos dentro del sistema táctico
-export type UserRole = 'admin' | 'administrador' | 'Admin' | 'Operator' | 'Client';
+export type UserRole = 'admin' | 'asesor' | 'Admin' | 'Operator' | 'Client';
 
 export interface UserProfile {
   id: string;

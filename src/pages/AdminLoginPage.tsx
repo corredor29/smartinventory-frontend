@@ -25,23 +25,23 @@ export const AdminLoginPage = () => {
       const emailLower = email.toLowerCase();
       
       // Lógica de roles para acceso administrativo
-      if (emailLower.includes('super') || emailLower.includes('root')) {
-        // Super Admin (admin) - Control total
+      if (emailLower.includes('admin') || emailLower.includes('root') || emailLower.includes('super')) {
+        // Admin - Control total
         login('admin-token', {
           id: 'admin-001',
-          username: email.split('@')[0] || 'superadmin',
+          username: email.split('@')[0] || 'admin',
           email,
           role: 'admin',
           agentName: 'COMMANDER',
         });
         navigate('/dashboard');
-      } else if (emailLower.includes('admin') || emailLower.includes('lector')) {
-        // Admin Lector (administrador) - Solo lectura
+      } else if (emailLower.includes('asesor') || emailLower.includes('lector') || emailLower.includes('view')) {
+        // Asesor - Solo lectura
         login('reader-token', {
-          id: 'admin-002',
-          username: email.split('@')[0] || 'adminlector',
+          id: 'asesor-001',
+          username: email.split('@')[0] || 'asesor',
           email,
-          role: 'administrador',
+          role: 'asesor',
           agentName: 'OBSERVER',
         });
         navigate('/dashboard');
@@ -154,14 +154,14 @@ export const AdminLoginPage = () => {
               <div className="flex items-start gap-2 text-xs">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#ff4655] mt-1.5 flex-shrink-0" />
                 <div>
-                  <span className="text-gray-300 font-semibold">Super Admin (admin)</span>
+                  <span className="text-gray-300 font-semibold">Admin</span>
                   <span className="text-gray-500 ml-2">- Control total del sistema</span>
                 </div>
               </div>
               <div className="flex items-start gap-2 text-xs">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#00ece0] mt-1.5 flex-shrink-0" />
                 <div>
-                  <span className="text-gray-300 font-semibold">Admin Lector (administrador)</span>
+                  <span className="text-gray-300 font-semibold">Asesor</span>
                   <span className="text-gray-500 ml-2">- Solo visualización</span>
                 </div>
               </div>
