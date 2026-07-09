@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
+import { Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
@@ -66,6 +67,13 @@ export function ClientNavbar() {
         </nav>
 
         <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => navigate('/admin-login')}
+            className="p-2 text-gray-600 hover:text-[#00ece0] transition-colors opacity-60 hover:opacity-100"
+            title="Acceso Administrativo"
+          >
+            <Shield className="w-4 h-4" />
+          </button>
           {isAuthenticated ? (
             <>
               <span className="hidden sm:block text-[10px] font-mono text-gray-500 uppercase tracking-wider">

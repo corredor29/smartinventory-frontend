@@ -4,6 +4,7 @@ import { mockProducts } from '../api/productApi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { ClientNavbar } from '../components/ClientNavbar';
+import { SupportFab } from '../components/SupportFab';
 import type { Product } from '../types/product';
 
 // Paleta: #0f1923 · #ff4655 · #00ece0 · #1f2326
@@ -519,6 +520,8 @@ export const HomePage = () => {
           </div>
         </div>
       )}
+
+      <SupportFab />
     </div>
   );
 };

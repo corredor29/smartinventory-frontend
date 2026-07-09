@@ -4,6 +4,7 @@ import { useAuth, type UserRole } from '../context/AuthContext';
 import { ProtectedRoute } from './ProtectedRoute';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
+import { AdminLoginPage } from '../pages/AdminLoginPage';
 import { CartPage } from '../pages/CartPage';
 import { OrdersPage } from '../pages/OrdersPage';
 import { InvoicesPage } from '../pages/InvoicesPage';
@@ -22,12 +23,12 @@ const MainLayout: React.FC = () => {
   const { user, logout } = useAuth();
 
   const navItems = [
-    { path: '/dashboard', label: 'The Range', desc: 'Dashboard', roles: ['Admin', 'Operator'] as UserRole[] },
-    { path: '/armeria', label: 'Armería', desc: 'Catálogo', roles: ['Admin', 'Operator'] as UserRole[] },
-    { path: '/almacenamiento', label: 'Almacenamiento', desc: 'Inventario', roles: ['Admin'] as UserRole[] },
-    { path: '/ventas', label: 'Historial Partidas', desc: 'Ventas', roles: ['Admin', 'Operator'] as UserRole[] },
-    { path: '/economia', label: 'Economía', desc: 'Facturas', roles: ['Admin', 'Operator'] as UserRole[] },
-    { path: '/killjoy-bot', label: 'Asistente Táctico', desc: 'Killjoy Bot', roles: ['Admin', 'Operator'] as UserRole[] },
+    { path: '/dashboard', label: 'The Range', desc: 'Dashboard', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/armeria', label: 'Armería', desc: 'Catálogo', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/almacenamiento', label: 'Almacenamiento', desc: 'Inventario', roles: ['admin', 'Admin'] as UserRole[] },
+    { path: '/ventas', label: 'Historial Partidas', desc: 'Ventas', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/economia', label: 'Economía', desc: 'Facturas', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/killjoy-bot', label: 'Asistente Táctico', desc: 'Killjoy Bot', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
   ];
 
   return (
@@ -131,6 +132,9 @@ export const AppRoutes: React.FC = () => {
         {/* Ruta Pública de Autenticación (login / registro) */}
         <Route path="/login" element={<LoginPage />} />
 
+        {/* Ruta de Acceso Administrativo Oculto */}
+        <Route path="/admin-login" element={<AdminLoginPage />} />
+
         {/* Rutas protegidas del cliente (carrito, pedidos, facturas) */}
         <Route element={<ProtectedRoute allowedRoles={['Client']} />}>
           <Route path="/carrito" element={<CartPage />} />
@@ -138,8 +142,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="/facturas" element={<InvoicesPage />} />
         </Route>
 
-        {/* Grupo de Rutas Protegidas de Operación (Admin / Operator) */}
-        <Route element={<ProtectedRoute allowedRoles={['Admin', 'Operator']} />}>
+        {/* Grupo de Rutas Protegidas de Operación (admin, administrador, Admin, Operator) */}
+        <Route element={<ProtectedRoute allowedRoles={['admin', 'administrador', 'Admin', 'Operator']} />}>
           <Route path="/dashboard" element={<MainLayout />} />
           <Route path="/armeria" element={<MainLayout />} />
           <Route path="/almacenamiento" element={<MainLayout />} />
