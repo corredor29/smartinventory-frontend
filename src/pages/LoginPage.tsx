@@ -266,6 +266,14 @@ export const LoginPage = () => {
               </>
             )}
           </p>
+
+          <button
+            onClick={() => navigate('/')}
+            className="w-full mt-4 py-2 border border-gray-700 hover:border-[#00ece0] text-gray-500 hover:text-[#00ece0] text-xs font-bold uppercase tracking-wider transition-colors"
+            style={{ clipPath: 'polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px)' }}
+          >
+            ← Volver al inicio
+          </button>
         </div>
       </div>
 
