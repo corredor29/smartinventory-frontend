@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { mockProducts } from '../api/productApi';
+import { login as loginApi, register as registerApi } from '../api/authApi';
 import transitionGif from '../assets/register-transition.gif';
 
 type Mode = 'login' | 'register';
@@ -12,6 +13,16 @@ interface LoginLocationState {
   from?: { pathname: string };
   intent?: 'buy';
   productId?: string;
+}
+function mapBackendRole(role: string): 'Admin' | 'Operator' | 'Client' {
+  switch (role) {
+    case 'Administrador':
+      return 'Admin';
+    case 'Asesor':
+      return 'Operator';
+    default:
+      return 'Client';
+  }
 }
 
 export const LoginPage = () => {
@@ -33,9 +44,6 @@ export const LoginPage = () => {
   const [loading, setLoading] = useState(false);
 
   // ─── Animación de transición Login <-> Registro ────────────────────────
-  // El gif arranca como un punto en el centro, crece hasta cubrir toda la
-  // pantalla y, una vez cubierto, cambia el modo del formulario por debajo.
-  // Después se reduce de nuevo revelando la vista ya cambiada.
   const switchMode = (target: Mode) => {
     if (target === mode) return;
     setError(null);
@@ -72,18 +80,17 @@ export const LoginPage = () => {
 
     setLoading(true);
     try {
-      // TODO: reemplazar por la llamada real a authApi.ts (login/register contra el backend .NET)
-      await new Promise((r) => setTimeout(r, 600));
-      const emailLower = email.toLowerCase();
-      const role = emailLower.includes('asesor')
-        ? 'Operator'
-        : emailLower.includes('admin')
-          ? 'Admin'
-          : 'Client';
-      login('mock-token', {
-        id: 'usr-1',
-        username: email.split('@')[0] || 'cliente',
-        email,
+      const result =
+        mode === 'register'
+          ? await registerApi({ name, email, password })
+          : await loginApi({ email, password });
+
+      const role = mapBackendRole(result.role);
+
+      login(result.token, {
+        id: result.email,
+        username: result.name,
+        email: result.email,
         role,
         agentName: name || undefined,
       });
@@ -99,8 +106,14 @@ export const LoginPage = () => {
       } else {
         navigate('/dashboard');
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo procesar la solicitud');
+    } catch (err: any) {
+      const backendMessage = err?.response?.data?.message;
+      setError(
+        backendMessage ||
+          (mode === 'register'
+            ? 'No se pudo completar el registro. Intenta de nuevo.'
+            : 'Email o contraseña incorrectos.')
+      );
     } finally {
       setLoading(false);
     }

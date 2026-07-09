@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Search, AlertTriangle, Package, DollarSign, Clock, Lock, TrendingUp, ShoppingCart, FileText, LogOut } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { getDashboardMetrics, type DashboardMetrics } from '../../api/dashboardApi';
 
 // ─── Tipos de Datos ────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ interface Report {
   timestamp: string;
 }
 
-// ─── Datos Mock Iniciales ───────────────────────────────────────────────────────
+// ─── Datos Mock (SOLO para la tabla de inventario, pendiente de conectar a productApi) ───
 
 const initialProducts: Product[] = [
   {
@@ -146,32 +147,8 @@ const initialReports: Report[] = [
   },
 ];
 
-// Datos para gráficos
-const weeklySalesData = [
-  { day: 'Lun', manual: 4500, chatbot: 1200 },
-  { day: 'Mar', manual: 5200, chatbot: 1800 },
-  { day: 'Mié', manual: 4800, chatbot: 2100 },
-  { day: 'Jue', manual: 6100, chatbot: 2400 },
-  { day: 'Vie', manual: 7200, chatbot: 3200 },
-  { day: 'Sáb', manual: 5800, chatbot: 2800 },
-  { day: 'Dom', manual: 4200, chatbot: 1500 },
-];
-
-const categorySalesData = [
-  { name: 'Electrónicos', value: 35, color: '#00ece0' },
-  { name: 'Periféricos', value: 25, color: '#ff4655' },
-  { name: 'Accesorios', value: 20, color: '#fbbf24' },
-  { name: 'Almacenamiento', value: 15, color: '#c084fc' },
-  { name: 'Audio', value: 5, color: '#34d399' },
-];
-
-const recentInvoices = [
-  { id: 'INV-001', client: 'Carlos Vega', date: '2024-01-15', amount: 3198 },
-  { id: 'INV-002', client: 'María González', date: '2024-01-15', amount: 945 },
-  { id: 'INV-003', client: 'Juan Pérez', date: '2024-01-14', amount: 1890 },
-  { id: 'INV-004', client: 'Ana López', date: '2024-01-14', amount: 699 },
-  { id: 'INV-005', client: 'Pedro Sánchez', date: '2024-01-13', amount: 2598 },
-];
+// Colores asignados por índice para el gráfico de categorías (el backend no envía color)
+const CATEGORY_COLORS = ['#00ece0', '#ff4655', '#fbbf24', '#c084fc', '#34d399'];
 
 // ─── Componentes del Dashboard ────────────────────────────────────────────────────
 
@@ -377,30 +354,26 @@ export const DashboardPage = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const isAdmin = user?.role === 'admin';
-  const isReadOnly = user?.role === 'asesor';
+  // ─── Métricas reales del backend ────────────────────────────────────────────
+  const [metricsData, setMetricsData] = useState<DashboardMetrics | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
 
-  // ─── Cálculos de Métricas ────────────────────────────────────────────────────
+  useEffect(() => {
+    getDashboardMetrics()
+      .then(setMetricsData)
+      .catch((err) => {
+        console.error('Error cargando métricas del dashboard:', err);
+        setMetricsError('No se pudieron cargar las métricas del servidor.');
+      })
+      .finally(() => setLoadingMetrics(false));
+  }, []);
 
-  const metrics = useMemo(() => {
-    const totalProducts = products.length;
-    const totalValue = products.reduce((sum, p) => sum + p.price * p.stock, 0);
-    const criticalStock = products.filter((p) => p.status === 'critical').length;
-    const outOfStock = products.filter((p) => p.status === 'out_of_stock').length;
-    const dailySales = 12450;
-    const chatbotSales = 37;
+  const userRoleLower = user?.role?.toLowerCase();
+  const isAdmin = userRoleLower === 'admin';
+  const isReadOnly = userRoleLower === 'asesor';
 
-    return {
-      totalProducts,
-      totalValue,
-      criticalStock,
-      outOfStock,
-      dailySales,
-      chatbotSales,
-    };
-  }, [products]);
-
-  // ─── Filtros ─────────────────────────────────────────────────────────────────
+  // ─── Filtros (sobre la tabla de inventario, aún mock) ────────────────────────
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -438,7 +411,6 @@ export const DashboardPage = () => {
     if (isReadOnly) return;
 
     if (selectedProduct) {
-      // Editar producto existente
       setProducts(
         products.map((p) =>
           p.id === selectedProduct.id
@@ -457,7 +429,6 @@ export const DashboardPage = () => {
         )
       );
     } else {
-      // Agregar nuevo producto
       const newProduct: Product = {
         ...productData,
         id: `PRD-${String(products.length + 1).padStart(3, '0')}`,
@@ -497,7 +468,7 @@ export const DashboardPage = () => {
               <span className={`ml-2 text-xs font-bold uppercase ${
                 isAdmin ? 'text-[#ff4655]' : 'text-[#00ece0]'
               }`}>
-                {user?.role === 'admin' ? 'Admin' : 'Asesor'}
+                {isAdmin ? 'Admin' : 'Asesor'}
               </span>
             </div>
             {isReadOnly && (
@@ -517,32 +488,37 @@ export const DashboardPage = () => {
             </button>
           </div>
         </div>
+
+        {metricsError && (
+          <div className="mt-2 px-3 py-2 bg-[#ff4655]/10 border border-[#ff4655]/30 text-[#ff4655] text-xs">
+            {metricsError}
+          </div>
+        )}
       </div>
 
       {/* Métricas Tácticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <MetricCard
           title="Total Productos"
-          value={metrics.totalProducts}
+          value={loadingMetrics ? '...' : metricsData?.totalProducts ?? 0}
           icon={<Package className="w-5 h-5" />}
           color="#00ece0"
-          trend="+12.5%"
         />
         <MetricCard
           title="Ventas del Día"
-          value={`$${metrics.dailySales.toLocaleString()}`}
+          value={loadingMetrics ? '...' : `$${(metricsData?.dailySalesTotal ?? 0).toLocaleString()}`}
           icon={<DollarSign className="w-5 h-5" />}
           color="#ff4655"
         />
         <MetricCard
           title="Bajo Stock"
-          value={metrics.criticalStock}
+          value={loadingMetrics ? '...' : metricsData?.lowStockCount ?? 0}
           icon={<AlertTriangle className="w-5 h-5" />}
           color="#fbbf24"
         />
         <MetricCard
           title="Ventas Chatbot"
-          value={metrics.chatbotSales}
+          value={loadingMetrics ? '...' : metricsData?.chatbotSalesCount ?? 0}
           icon={<Clock className="w-5 h-5" />}
           color="#c084fc"
         />
@@ -556,24 +532,28 @@ export const DashboardPage = () => {
             <TrendingUp className="w-4 h-4 text-[#00ece0]" />
             Ventas Semanales
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={weeklySalesData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
-              <XAxis dataKey="day" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-              <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#16191b',
-                  border: '1px solid #21262d',
-                  borderRadius: '8px',
-                }}
-                itemStyle={{ color: '#e5e7eb' }}
-              />
-              <Legend />
-              <Line type="monotone" dataKey="manual" stroke="#00ece0" strokeWidth={2} name="Manual" />
-              <Line type="monotone" dataKey="chatbot" stroke="#ff4655" strokeWidth={2} name="Chatbot" />
-            </LineChart>
-          </ResponsiveContainer>
+          {loadingMetrics ? (
+            <div className="h-[250px] flex items-center justify-center text-gray-500 text-xs">Cargando...</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={250}>
+              <LineChart data={metricsData?.weeklySales ?? []}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
+                <XAxis dataKey="day" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#16191b',
+                    border: '1px solid #21262d',
+                    borderRadius: '8px',
+                  }}
+                  itemStyle={{ color: '#e5e7eb' }}
+                />
+                <Legend />
+                <Line type="monotone" dataKey="manual" stroke="#00ece0" strokeWidth={2} name="Manual" />
+                <Line type="monotone" dataKey="chatbot" stroke="#ff4655" strokeWidth={2} name="Chatbot" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Gráfico de Ventas por Categoría */}
@@ -582,39 +562,52 @@ export const DashboardPage = () => {
             <ShoppingCart className="w-4 h-4 text-[#ff4655]" />
             Ventas por Categoría
           </h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={categorySalesData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={80}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {categorySalesData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+          {loadingMetrics ? (
+            <div className="h-[250px] flex items-center justify-center text-gray-500 text-xs">Cargando...</div>
+          ) : (metricsData?.categorySales?.length ?? 0) === 0 ? (
+            <div className="h-[250px] flex items-center justify-center text-gray-500 text-xs">
+              Aún no hay ventas registradas.
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={metricsData!.categorySales}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {metricsData!.categorySales.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#16191b',
+                      border: '1px solid #21262d',
+                      borderRadius: '8px',
+                    }}
+                    itemStyle={{ color: '#e5e7eb' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-3 mt-4 justify-center">
+                {metricsData!.categorySales.map((item, index) => (
+                  <div key={item.categoryName} className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }}
+                    />
+                    <span className="text-xs text-gray-400">{item.categoryName}</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#16191b',
-                  border: '1px solid #21262d',
-                  borderRadius: '8px',
-                }}
-                itemStyle={{ color: '#e5e7eb' }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex flex-wrap gap-3 mt-4 justify-center">
-            {categorySalesData.map((item) => (
-              <div key={item.name} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                <span className="text-xs text-gray-400">{item.name}</span>
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -628,21 +621,31 @@ export const DashboardPage = () => {
           <table className="w-full text-xs">
             <thead>
               <tr className="text-gray-500 uppercase tracking-wider border-b border-gray-800">
-                <th className="text-left pb-3 font-mono">ID</th>
+                <th className="text-left pb-3 font-mono">Factura</th>
                 <th className="text-left pb-3 font-mono">Cliente</th>
                 <th className="text-left pb-3 font-mono">Fecha</th>
                 <th className="text-right pb-3 font-mono">Monto</th>
               </tr>
             </thead>
             <tbody className="text-gray-300">
-              {recentInvoices.map((invoice) => (
-                <tr key={invoice.id} className="border-b border-gray-800/50 hover:bg-[#0d1117]/50 transition-colors">
-                  <td className="py-3 font-mono text-[#00ece0]">{invoice.id}</td>
-                  <td className="py-3 font-semibold">{invoice.client}</td>
-                  <td className="py-3 font-mono">{invoice.date}</td>
-                  <td className="py-3 text-right font-mono">${invoice.amount.toLocaleString()}</td>
+              {loadingMetrics ? (
+                <tr>
+                  <td colSpan={4} className="py-6 text-center text-gray-500">Cargando...</td>
                 </tr>
-              ))}
+              ) : (metricsData?.recentInvoices?.length ?? 0) === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-6 text-center text-gray-500">Aún no hay facturas registradas.</td>
+                </tr>
+              ) : (
+                metricsData!.recentInvoices.map((invoice) => (
+                  <tr key={invoice.invoiceNumber} className="border-b border-gray-800/50 hover:bg-[#0d1117]/50 transition-colors">
+                    <td className="py-3 font-mono text-[#00ece0]">{invoice.invoiceNumber}</td>
+                    <td className="py-3 font-semibold">{invoice.customerName}</td>
+                    <td className="py-3 font-mono">{new Date(invoice.issueDate).toLocaleDateString()}</td>
+                    <td className="py-3 text-right font-mono">${invoice.total.toLocaleString()}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -677,7 +680,7 @@ export const DashboardPage = () => {
         </div>
       )}
 
-      {/* Tabla de Inventario */}
+      {/* Tabla de Inventario (aún mock — pendiente de conectar a productApi) */}
       <div className="bg-[#16191b] border border-gray-800 p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-white text-sm font-bold uppercase tracking-wider flex items-center gap-2">
