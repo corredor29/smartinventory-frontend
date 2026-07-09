@@ -10,6 +10,8 @@ import { ProductsPage } from '../pages/products/ProductsPage';
 import { InvoicesPage } from '../pages/invoices/InvoicesPage';
 import { CartPage } from '../pages/CartPage';
 import { OrdersPage } from '../pages/OrdersPage';
+import Error404 from '../pages/errors/Error404';
+import RateLimit429 from '../pages/errors/RateLimit429';
 import { LogOut } from 'lucide-react';
 const Armeria = () => <div className="text-white p-6 bg-[#1f2326] border-l-4 border-[#00ece0]">Módulo de Armas // CATÁLOGO DE PRODUCTOS</div>;
 const Almacenamiento = () => <div className="text-white p-6 bg-[#1f2326] border border-[#ff4655]/30">Sitio de Almacenamiento // INVENTARIO</div>;
@@ -161,7 +163,11 @@ export const AppRoutes: React.FC = () => {
           <Route path="/killjoy-bot" element={<MainLayout />} />
           <Route path="/unauthorized" element={<MainLayout />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+
+        {/* Rutas de Error */}
+        <Route path="/error-404" element={<Error404 />} />
+        <Route path="/error-429" element={<RateLimit429 />} />
+        <Route path="*" element={<Error404 />} />
       </Routes>
     </BrowserRouter>
   );
