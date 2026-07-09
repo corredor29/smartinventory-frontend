@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mockProducts } from '../api/productApi';
+import { getPublicProducts } from '../api/productApi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { ClientNavbar } from '../components/ClientNavbar';
@@ -300,7 +300,9 @@ export const HomePage = () => {
   };
 
   useEffect(() => {
-    setProducts(mockProducts);
+    getPublicProducts()
+      .then(setProducts)
+      .catch((err) => console.error('Error cargando productos:', err));
   }, []);
 
   useEffect(() => {

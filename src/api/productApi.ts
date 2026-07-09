@@ -1,185 +1,99 @@
 import type { Product } from "../types/product";
+import httpClient from "./httpClient";
 
-import foto1 from "../assets/products/foto1.png";
-import foto2 from "../assets/products/foto2.png";
-import foto3 from "../assets/products/foto3.png";
-import foto4 from "../assets/products/foto4.png";
-import foto5 from "../assets/products/foto5.png";
-import foto6 from "../assets/products/foto6.png";
-import foto7 from "../assets/products/foto7.png";
-import foto8 from "../assets/products/foto8.png";
-import foto9 from "../assets/products/foto9.png";
-import foto10 from "../assets/products/foto10.png";
-import foto11 from "../assets/products/foto11.png";
-import foto12 from "../assets/products/foto12.png";
-import foto13 from "../assets/products/foto13.png";
-import foto14 from "../assets/products/foto14.png";
-import foto15 from "../assets/products/foto15.png";
-import foto16 from "../assets/products/foto16.png";
+// Imagen de respaldo si el producto no tiene imageUrl (aún no se le asignó una)
+const FALLBACK_IMAGE = "/placeholder-product.png";
 
-export async function getPublicProducts(): Promise<Product[]> {
-  return mockProducts;
+interface ProductDto {
+  productId: number;
+  name: string;
+  description: string | null;
+  price: number;
+  categoryName: string;
+  statusName: string;
+  currentStock: number;
+  imageUrl: string | null;
 }
 
-export const mockProducts: Product[] = [
-  {
-    id: "PRD-001",
-    name: "Laptop Dell XPS 15",
-    category: "Electrónicos",
-    price: 1299,
-    stock: 23,
-    active: true,
-    image: foto1,
-    description: "Laptop de alto rendimiento con pantalla InfinityEdge, ideal para trabajo profesional y multitarea exigente.",
-  },
-  {
-    id: "PRD-002",
-    name: "Mouse Logitech MX Master 3",
-    category: "Periféricos",
-    price: 89,
-    stock: 67,
-    active: true,
-    image: foto2,
-    description: "Mouse ergonómico inalámbrico con scroll de precisión, pensado para productividad y diseño.",
-  },
-  {
-    id: "PRD-003",
-    name: "Teclado Mecánico Redragon K552",
-    category: "Periféricos",
-    price: 45,
-    stock: 34,
-    active: true,
-    image: foto3,
-    description: "Teclado mecánico compacto con retroiluminación RGB y switches resistentes para uso intensivo.",
-  },
-  {
-    id: "PRD-004",
-    name: 'Monitor LG UltraWide 27"',
-    category: "Electrónicos",
-    price: 399,
-    stock: 8,
-    active: true,
-    image: foto4,
-    description: "Monitor ultrapanorámico ideal para multitarea, edición y sesiones de juego inmersivas.",
-  },
-  {
-    id: "PRD-005",
-    name: "SSD Samsung 870 EVO 1TB",
-    category: "Almacenamiento",
-    price: 119,
-    stock: 56,
-    active: true,
-    image: foto5,
-    description: "Unidad de estado sólido de alta velocidad, perfecta para acelerar tu equipo o ampliar almacenamiento.",
-  },
-  {
-    id: "PRD-006",
-    name: "Auriculares Sony WH-1000XM5",
-    category: "Audio",
-    price: 249,
-    stock: 2,
-    active: true,
-    image: foto6,
-    description: "Auriculares inalámbricos con cancelación de ruido líder en su categoría y sonido de alta fidelidad.",
-  },
-  {
-    id: "PRD-007",
-    name: "Webcam Logitech C920",
-    category: "Periféricos",
-    price: 79,
-    stock: 41,
-    active: true,
-    image: foto7,
-    description: "Cámara web Full HD con enfoque automático, ideal para videollamadas y transmisiones en vivo.",
-  },
-  {
-    id: "PRD-008",
-    name: "Hub USB-C 7 en 1",
-    category: "Accesorios",
-    price: 39,
-    stock: 90,
-    active: true,
-    image: foto8,
-    description: "Adaptador multipuerto USB-C con salida HDMI, lector de tarjetas y puertos USB adicionales.",
-  },
-  {
-    id: "PRD-009",
-    name: "Silla Gamer Secretlab",
-    category: "Mobiliario",
-    price: 449,
-    stock: 6,
-    active: true,
-    image: foto9,
-    description: "Silla ergonómica reclinable con soporte lumbar ajustable, pensada para largas jornadas frente al equipo.",
-  },
-  {
-    id: "PRD-010",
-    name: "iPad Air 5ta generación",
-    category: "Electrónicos",
-    price: 749,
-    stock: 5,
-    active: true,
-    image: foto10,
-    description: "Tablet versátil con chip de alto rendimiento, ideal para creatividad, estudio y trabajo móvil.",
-  },
-  {
-    id: "PRD-011",
-    name: "Laptop Acer Aspire 5",
-    category: "Electrónicos",
-    price: 549,
-    stock: 14,
-    active: true,
-    image: foto11,
-    description: "Laptop equilibrada en precio y rendimiento, perfecta para uso diario, estudio y oficina.",
-  },
-  {
-    id: "PRD-012",
-    name: "Laptop Asus ROG Strix G16",
-    category: "Electrónicos",
-    price: 1499,
-    stock: 6,
-    active: true,
-    image: foto12,
-    description: "Equipo gamer de alto desempeño con tarjeta gráfica dedicada y sistema de refrigeración avanzado.",
-  },
-  {
-    id: "PRD-013",
-    name: "Laptop Lenovo ThinkPad X1 Carbon",
-    category: "Electrónicos",
-    price: 1699,
-    stock: 4,
-    active: true,
-    image: foto13,
-    description: "Ultrabook empresarial ultraligero, construido para durabilidad y productividad en movimiento.",
-  },
-  {
-    id: "PRD-014",
-    name: "Laptop MSI Katana 15",
-    category: "Electrónicos",
-    price: 1099,
-    stock: 9,
-    active: true,
-    image: foto14,
-    description: "Laptop gamer con pantalla de alta tasa de refresco, lista para juegos exigentes y streaming.",
-  },
-  {
-    id: "PRD-015",
-    name: "Laptop HP Pavilion 15",
-    category: "Electrónicos",
-    price: 629,
-    stock: 18,
-    active: true,
-    image: foto15,
-    description: "Laptop versátil para el día a día, con buen balance entre portabilidad y rendimiento.",
-  },
-  {
-    id: "PRD-016",
-    name: "Laptop Alienware m16",
-    category: "Electrónicos",
-    price: 2399,
-    stock: 3,
-    active: true,
-    image: foto16,
-    description: "Equipo gamer de gama alta con diseño premium y potencia máxima para los títulos más exigentes.",
-  },
-];
+function mapProductDtoToProduct(dto: ProductDto): Product {
+  return {
+    id: String(dto.productId),
+    name: dto.name,
+    category: dto.categoryName,
+    price: dto.price,
+    stock: dto.currentStock,
+    active: dto.statusName === "Activo",
+    image: dto.imageUrl || FALLBACK_IMAGE,
+    description: dto.description || "",
+  };
+}
+
+/**
+ * Trae todos los productos desde el backend real.
+ * Reemplaza la función anterior que devolvía mockProducts.
+ */
+export async function getPublicProducts(): Promise<Product[]> {
+  const response = await httpClient.get<ProductDto[]>("/products");
+  return response.data.map(mapProductDtoToProduct);
+}
+
+/**
+ * Búsqueda de productos (usa el mismo endpoint que consume el chatbot).
+ */
+export async function searchProducts(query: string): Promise<Product[]> {
+  const response = await httpClient.get<{ found: boolean; products: ProductDto[] }>(
+    "/products/search",
+    { params: { q: query } }
+  );
+  return response.data.products.map(mapProductDtoToProduct);
+}
+
+/**
+ * Trae un producto específico por su Id.
+ */
+export async function getProductById(id: string): Promise<Product> {
+  const response = await httpClient.get<ProductDto>(`/products/${id}`);
+  return mapProductDtoToProduct(response.data);
+}
+
+/**
+ * Crea un producto nuevo (solo Administrador, requiere token).
+ */
+export async function createProduct(data: {
+  name: string;
+  description?: string;
+  price: number;
+  categoryId: number;
+  productStatusId: number;
+  imageUrl?: string;
+}): Promise<Product> {
+  const response = await httpClient.post<ProductDto>("/products", data);
+  return mapProductDtoToProduct(response.data);
+}
+
+/**
+ * Actualiza un producto existente (solo Administrador, requiere token).
+ */
+export async function updateProduct(
+  id: string,
+  data: {
+    name: string;
+    description?: string;
+    price: number;
+    categoryId: number;
+    imageUrl?: string;
+  }
+): Promise<Product> {
+  const response = await httpClient.put<ProductDto>(`/products/${id}`, data);
+  return mapProductDtoToProduct(response.data);
+}
+
+/**
+ * Elimina un producto (solo Administrador, requiere token).
+ */
+export async function deleteProduct(id: string): Promise<void> {
+  await httpClient.delete(`/products/${id}`);
+}
+
+
+export const mockProducts: Product[] = [];
