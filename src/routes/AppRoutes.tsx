@@ -1,14 +1,16 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ProtectedRoute } from './ProtectedRoute';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { AdminLoginPage } from '../pages/AdminLoginPage';
-import { DashboardPage } from '../pages/DashboardPage';
+import { DashboardPage } from '../pages/dashboard/DashboardPage';
+import { ProductsPage } from '../pages/products/ProductsPage';
+import { InvoicesPage } from '../pages/invoices/InvoicesPage';
 import { CartPage } from '../pages/CartPage';
 import { OrdersPage } from '../pages/OrdersPage';
-import { InvoicesPage } from '../pages/InvoicesPage';
+import { LogOut } from 'lucide-react';
 const Armeria = () => <div className="text-white p-6 bg-[#1f2326] border-l-4 border-[#00ece0]">Módulo de Armas // CATÁLOGO DE PRODUCTOS</div>;
 const Almacenamiento = () => <div className="text-white p-6 bg-[#1f2326] border border-[#ff4655]/30">Sitio de Almacenamiento // INVENTARIO</div>;
 const HistorialPartidas = () => <div className="text-white p-6 bg-[#1f2326]">Historial de Partidas // REGISTRO DE VENTAS</div>;
@@ -19,6 +21,12 @@ const Unauthorized = () => <div className="text-[#ff4655] font-mono p-10 text-ce
 // Layout Principal con Estética Militarizada de Valorant
 const MainLayout: React.FC = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
 
   const navItems = [
     { path: '/dashboard', label: 'The Range', desc: 'Dashboard', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
@@ -75,10 +83,11 @@ const MainLayout: React.FC = () => {
               <span className="text-[10px] text-gray-500 uppercase tracking-wider">{user?.role}</span>
             </div>
             <button
-              onClick={logout}
-              className="px-2 py-1 bg-transparent hover:bg-[#ff4655]/20 border border-[#ff4655] text-[#ff4655] text-[10px] font-mono uppercase tracking-wider transition-all"
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 text-[10px] font-mono uppercase tracking-wider transition-all rounded"
             >
-              Salir
+              <LogOut className="w-4 h-4" />
+              Cerrar Sesión
             </button>
           </div>
         </div>
@@ -140,9 +149,11 @@ export const AppRoutes: React.FC = () => {
           <Route path="/facturas" element={<InvoicesPage />} />
         </Route>
 
-        {/* Grupo de Rutas Protegidas de Operación (admin, administrador, Admin, Operator) */}
-        <Route element={<ProtectedRoute allowedRoles={['admin', 'administrador', 'Admin', 'Operator']} />}>
-          <Route path="/dashboard" element={<MainLayout />} />
+        {/* Grupo de Rutas Protegidas de Operación (admin, asesor, Admin, Operator) */}
+        <Route element={<ProtectedRoute allowedRoles={['admin', 'asesor', 'Admin', 'Operator']} />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/products" element={<ProductsPage />} />
+          <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/armeria" element={<MainLayout />} />
           <Route path="/almacenamiento" element={<MainLayout />} />
           <Route path="/ventas" element={<MainLayout />} />

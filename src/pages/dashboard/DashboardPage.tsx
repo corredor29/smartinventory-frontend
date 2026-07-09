@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { Plus, Edit, Trash2, Search, AlertTriangle, Package, DollarSign, Clock, Lock } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit, Trash2, Search, AlertTriangle, Package, DollarSign, Clock, Lock, TrendingUp, ShoppingCart, FileText, LogOut } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 // ─── Tipos de Datos ────────────────────────────────────────────────────────────
 
@@ -142,6 +144,33 @@ const initialReports: Report[] = [
     amount: 945,
     timestamp: '2024-01-15 09:15',
   },
+];
+
+// Datos para gráficos
+const weeklySalesData = [
+  { day: 'Lun', manual: 4500, chatbot: 1200 },
+  { day: 'Mar', manual: 5200, chatbot: 1800 },
+  { day: 'Mié', manual: 4800, chatbot: 2100 },
+  { day: 'Jue', manual: 6100, chatbot: 2400 },
+  { day: 'Vie', manual: 7200, chatbot: 3200 },
+  { day: 'Sáb', manual: 5800, chatbot: 2800 },
+  { day: 'Dom', manual: 4200, chatbot: 1500 },
+];
+
+const categorySalesData = [
+  { name: 'Electrónicos', value: 35, color: '#00ece0' },
+  { name: 'Periféricos', value: 25, color: '#ff4655' },
+  { name: 'Accesorios', value: 20, color: '#fbbf24' },
+  { name: 'Almacenamiento', value: 15, color: '#c084fc' },
+  { name: 'Audio', value: 5, color: '#34d399' },
+];
+
+const recentInvoices = [
+  { id: 'INV-001', client: 'Carlos Vega', date: '2024-01-15', amount: 3198 },
+  { id: 'INV-002', client: 'María González', date: '2024-01-15', amount: 945 },
+  { id: 'INV-003', client: 'Juan Pérez', date: '2024-01-14', amount: 1890 },
+  { id: 'INV-004', client: 'Ana López', date: '2024-01-14', amount: 699 },
+  { id: 'INV-005', client: 'Pedro Sánchez', date: '2024-01-13', amount: 2598 },
 ];
 
 // ─── Componentes del Dashboard ────────────────────────────────────────────────────
@@ -334,33 +363,42 @@ const ProductModal: React.FC<{
 // ─── Dashboard Principal ────────────────────────────────────────────────────────
 
 export const DashboardPage = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
-  const reports = initialReports;
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const isAdmin = user?.role === 'admin';
-  const isReadOnly = user?.role === 'administrador';
+  const isReadOnly = user?.role === 'asesor';
 
   // ─── Cálculos de Métricas ────────────────────────────────────────────────────
 
   const metrics = useMemo(() => {
+    const totalProducts = products.length;
     const totalValue = products.reduce((sum, p) => sum + p.price * p.stock, 0);
     const criticalStock = products.filter((p) => p.status === 'critical').length;
     const outOfStock = products.filter((p) => p.status === 'out_of_stock').length;
-    const pendingOrders = reports.filter((r) => r.type === 'sale').length;
+    const dailySales = 12450;
+    const chatbotSales = 37;
 
     return {
+      totalProducts,
       totalValue,
       criticalStock,
       outOfStock,
-      pendingOrders,
+      dailySales,
+      chatbotSales,
     };
-  }, [products, reports]);
+  }, [products]);
 
   // ─── Filtros ─────────────────────────────────────────────────────────────────
 
@@ -459,7 +497,7 @@ export const DashboardPage = () => {
               <span className={`ml-2 text-xs font-bold uppercase ${
                 isAdmin ? 'text-[#ff4655]' : 'text-[#00ece0]'
               }`}>
-                {user?.role === 'admin' ? 'Super Admin' : 'Admin Lector'}
+                {user?.role === 'admin' ? 'Admin' : 'Asesor'}
               </span>
             </div>
             {isReadOnly && (
@@ -470,6 +508,13 @@ export const DashboardPage = () => {
                 </span>
               </div>
             )}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 text-[10px] font-mono uppercase tracking-wider transition-all rounded"
+            >
+              <LogOut className="w-4 h-4" />
+              Cerrar Sesión
+            </button>
           </div>
         </div>
       </div>
@@ -477,30 +522,130 @@ export const DashboardPage = () => {
       {/* Métricas Tácticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <MetricCard
-          title="Valor Total Inventario"
-          value={`$${metrics.totalValue.toLocaleString()}`}
-          icon={<DollarSign className="w-5 h-5" />}
+          title="Total Productos"
+          value={metrics.totalProducts}
+          icon={<Package className="w-5 h-5" />}
           color="#00ece0"
           trend="+12.5%"
         />
         <MetricCard
-          title="Stock Crítico"
-          value={metrics.criticalStock}
-          icon={<AlertTriangle className="w-5 h-5" />}
+          title="Ventas del Día"
+          value={`$${metrics.dailySales.toLocaleString()}`}
+          icon={<DollarSign className="w-5 h-5" />}
           color="#ff4655"
         />
         <MetricCard
-          title="Productos Agotados"
-          value={metrics.outOfStock}
-          icon={<Package className="w-5 h-5" />}
+          title="Bajo Stock"
+          value={metrics.criticalStock}
+          icon={<AlertTriangle className="w-5 h-5" />}
           color="#fbbf24"
         />
         <MetricCard
-          title="Órdenes Pendientes"
-          value={metrics.pendingOrders}
+          title="Ventas Chatbot"
+          value={metrics.chatbotSales}
           icon={<Clock className="w-5 h-5" />}
           color="#c084fc"
         />
+      </div>
+
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Gráfico de Ventas Semanales */}
+        <div className="bg-[#16191b] border border-gray-800 p-6">
+          <h3 className="text-white text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-[#00ece0]" />
+            Ventas Semanales
+          </h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={weeklySalesData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
+              <XAxis dataKey="day" stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+              <YAxis stroke="#6b7280" tick={{ fill: '#9ca3af' }} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#16191b',
+                  border: '1px solid #21262d',
+                  borderRadius: '8px',
+                }}
+                itemStyle={{ color: '#e5e7eb' }}
+              />
+              <Legend />
+              <Line type="monotone" dataKey="manual" stroke="#00ece0" strokeWidth={2} name="Manual" />
+              <Line type="monotone" dataKey="chatbot" stroke="#ff4655" strokeWidth={2} name="Chatbot" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Gráfico de Ventas por Categoría */}
+        <div className="bg-[#16191b] border border-gray-800 p-6">
+          <h3 className="text-white text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4 text-[#ff4655]" />
+            Ventas por Categoría
+          </h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={categorySalesData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={80}
+                paddingAngle={5}
+                dataKey="value"
+              >
+                {categorySalesData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#16191b',
+                  border: '1px solid #21262d',
+                  borderRadius: '8px',
+                }}
+                itemStyle={{ color: '#e5e7eb' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="flex flex-wrap gap-3 mt-4 justify-center">
+            {categorySalesData.map((item) => (
+              <div key={item.name} className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="text-xs text-gray-400">{item.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Últimas Facturas */}
+      <div className="bg-[#16191b] border border-gray-800 p-6 mb-8">
+        <h3 className="text-white text-sm font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+          <FileText className="w-4 h-4 text-[#fbbf24]" />
+          Últimas Facturas
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-500 uppercase tracking-wider border-b border-gray-800">
+                <th className="text-left pb-3 font-mono">ID</th>
+                <th className="text-left pb-3 font-mono">Cliente</th>
+                <th className="text-left pb-3 font-mono">Fecha</th>
+                <th className="text-right pb-3 font-mono">Monto</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-300">
+              {recentInvoices.map((invoice) => (
+                <tr key={invoice.id} className="border-b border-gray-800/50 hover:bg-[#0d1117]/50 transition-colors">
+                  <td className="py-3 font-mono text-[#00ece0]">{invoice.id}</td>
+                  <td className="py-3 font-semibold">{invoice.client}</td>
+                  <td className="py-3 font-mono">{invoice.date}</td>
+                  <td className="py-3 text-right font-mono">${invoice.amount.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Alertas */}
