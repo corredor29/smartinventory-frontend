@@ -33,13 +33,13 @@ const MainLayout: React.FC = () => {
   };
 
   const navItems = [
-    { path: '/dashboard', label: 'Dashboard', desc: 'Métricas y Resumen', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
-    { path: '/products', label: 'Productos', desc: 'Catálogo General', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
-    { path: '/invoices', label: 'Facturas', desc: 'Documentos de Venta', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
-    { path: '/categories', label: 'Categorías', desc: 'Gestión de Tipos', roles: ['admin', 'Admin'] as UserRole[] },
-    { path: '/inventory', label: 'Inventario', desc: 'Ajustes de Stock', roles: ['admin', 'Admin'] as UserRole[] },
-    { path: '/sales', label: 'Ventas', desc: 'Historial de Ventas', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
-    { path: '/chatbot', label: 'Chatbot', desc: 'Asistente IA', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/dashboard', label: 'Dashboard', desc: 'Métricas y Resumen', roles: ['admin', 'asesor', 'operator'] as UserRole[] },
+    { path: '/products', label: 'Productos', desc: 'Catálogo General', roles: ['admin', 'asesor', 'operator'] as UserRole[] },
+    { path: '/invoices', label: 'Facturas', desc: 'Documentos de Venta', roles: ['admin', 'asesor', 'operator'] as UserRole[] },
+    { path: '/categories', label: 'Categorías', desc: 'Gestión de Tipos', roles: ['admin'] as UserRole[] },
+    { path: '/inventory', label: 'Inventario', desc: 'Ajustes de Stock', roles: ['admin'] as UserRole[] },
+    { path: '/sales', label: 'Ventas', desc: 'Historial de Ventas', roles: ['admin', 'asesor', 'operator'] as UserRole[] },
+    { path: '/chatbot', label: 'Chatbot', desc: 'Asistente IA', roles: ['admin', 'asesor', 'operator'] as UserRole[] },
   ];
 
   return (
@@ -120,7 +120,7 @@ const MainLayout: React.FC = () => {
             <Route path="/killjoy-bot" element={<KilljoyBot />} />
             
             {/* Ruta Protegida con restricción de Rol para Inventario */}
-            <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
               <Route path="/almacenamiento" element={<Almacenamiento />} />
             </Route>
 
@@ -148,14 +148,14 @@ export const AppRoutes: React.FC = () => {
         <Route path="/admin-login" element={<AdminLoginPage />} />
 
         {/* Rutas protegidas del cliente (carrito, pedidos, facturas) */}
-        <Route element={<ProtectedRoute allowedRoles={['Client']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['client']} />}>
           <Route path="/carrito" element={<CartPage />} />
           <Route path="/pedidos" element={<OrdersPage />} />
           <Route path="/facturas" element={<InvoicesPage />} />
         </Route>
 
-        {/* Grupo de Rutas Protegidas de Operación (admin, asesor, Admin, Operator) */}
-        <Route element={<ProtectedRoute allowedRoles={['admin', 'asesor', 'Admin', 'Operator']} />}>
+        {/* Grupo de Rutas Protegidas de Operación (admin, asesor, operator) */}
+        <Route element={<ProtectedRoute allowedRoles={['admin', 'asesor', 'operator']} />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />

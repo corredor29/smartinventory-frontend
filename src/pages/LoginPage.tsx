@@ -76,10 +76,10 @@ export const LoginPage = () => {
       await new Promise((r) => setTimeout(r, 600));
       const emailLower = email.toLowerCase();
       const role = emailLower.includes('asesor')
-        ? 'Operator'
+        ? 'asesor'
         : emailLower.includes('admin')
-          ? 'Admin'
-          : 'Client';
+          ? 'admin'
+          : 'client';
       login('mock-token', {
         id: 'usr-1',
         username: email.split('@')[0] || 'cliente',
@@ -88,7 +88,7 @@ export const LoginPage = () => {
         agentName: name || undefined,
       });
 
-      if (role === 'Client') {
+      if (role === 'client') {
         if (loginState.intent === 'buy' && loginState.productId) {
           const product = mockProducts.find((p) => p.id === loginState.productId);
           if (product) addToCart(product);
