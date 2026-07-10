@@ -127,7 +127,7 @@ export function ClientNavbar() {
         </div>
         <p className="text-[10px] font-mono text-gray-500 uppercase tracking-wider truncate hidden sm:block">
           {isAuthenticated
-            ? `Sesión activa // ${user?.role === 'Client' ? 'Cliente' : user?.role}`
+            ? `Sesión activa // ${user?.role === 'client' ? 'Cliente' : user?.role}`
             : 'Cliente invitado // Solo catálogo disponible'}
         </p>
         <span className="text-[10px] font-mono text-gray-600 uppercase tracking-widest shrink-0">
