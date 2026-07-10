@@ -1,58 +1,49 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Search, Lock, LogOut } from 'lucide-react';
+import { Plus, Minus, Lock, LogOut, Search } from 'lucide-react';
 
 interface Product {
   id: string;
   name: string;
   category: string;
-  price: number;
   stock: number;
-  status: 'Activo' | 'Inactivo';
 }
 
 const initialProducts: Product[] = [
-  { id: 'PRD-001', name: 'Laptop Dell XPS 15', category: 'Electrónicos', price: 1299, stock: 23, status: 'Activo' },
-  { id: 'PRD-002', name: 'Mouse Logitech MX Master 3', category: 'Periféricos', price: 89, stock: 67, status: 'Activo' },
-  { id: 'PRD-003', name: 'Monitor LG UltraWide 27"', category: 'Electrónicos', price: 399, stock: 8, status: 'Activo' },
-  { id: 'PRD-004', name: 'Teclado Mecánico Keychron K2', category: 'Periféricos', price: 145, stock: 3, status: 'Activo' },
-  { id: 'PRD-005', name: 'Webcam Logitech C920 HD', category: 'Accesorios', price: 79, stock: 0, status: 'Inactivo' },
-  { id: 'PRD-006', name: 'Hub USB-C 7 puertos', category: 'Accesorios', price: 45, stock: 42, status: 'Activo' },
-  { id: 'PRD-007', name: 'SSD Samsung 870 EVO 1TB', category: 'Almacenamiento', price: 119, stock: 56, status: 'Activo' },
+  { id: 'PRD-001', name: 'NVIDIA RTX 4090 Founders Edition', category: 'GPU', stock: 3 },
+  { id: 'PRD-002', name: 'AMD Ryzen 9 7950X', category: 'CPU', stock: 12 },
+  { id: 'PRD-003', name: 'Samsung 990 Pro 2TB NVMe', category: 'Storage', stock: 25 },
+  { id: 'PRD-004', name: 'Corsair DDR5 32GB 6000MHz', category: 'RAM', stock: 4 },
+  { id: 'PRD-005', name: 'ASUS ROG Strix RTX 4080', category: 'GPU', stock: 0 },
+  { id: 'PRD-006', name: 'Intel Core i9-14900K', category: 'CPU', stock: 18 },
 ];
 
-export const ProductsPage = () => {
+export const InventoryPage = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
   };
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
 
   const isAdmin = user?.role === 'admin';
   const isReadOnly = user?.role === 'asesor';
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const matchesSearch =
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.id.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
-      return matchesSearch && matchesCategory;
-    });
-  }, [products, searchTerm, categoryFilter]);
-
-  const handleDelete = (id: string) => {
+  const adjustStock = (id: string, delta: number) => {
     if (isReadOnly) return;
-    if (window.confirm('¿Estás seguro de eliminar este producto?')) {
-      setProducts(products.filter((p) => p.id !== id));
-    }
+    setProducts(products.map(p => 
+      p.id === id ? { ...p, stock: Math.max(0, p.stock + delta) } : p
+    ));
   };
+
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-[#0d1117] p-6 font-mono">
@@ -61,10 +52,10 @@ export const ProductsPage = () => {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-white uppercase tracking-wider">
-              Productos <span className="text-[#00ece0]">//</span> Catálogo
+              Inventario <span className="text-[#00ece0]">//</span> Ajustes
             </h1>
             <p className="text-gray-500 text-xs mt-1 uppercase tracking-widest">
-              Gestión de Inventario
+              Gestión Rápida de Stock
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -99,36 +90,25 @@ export const ProductsPage = () => {
       <div className="bg-[#16191b] border border-gray-800 p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-white text-sm font-bold uppercase tracking-wider">
-            Lista de Productos
+            Ajustes de Stock (+1 / -1)
           </h2>
           <div className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">
-            Solo visualización // CRUD en Dashboard
+            Sin registro de motivos
           </div>
         </div>
 
-        {/* Filtros */}
-        <div className="flex gap-4 mb-6">
-          <div className="flex-1 relative">
+        {/* Búsqueda */}
+        <div className="mb-6">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               type="text"
-              placeholder="Buscar por nombre o ID..."
+              placeholder="Buscar producto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-[#0d1117] border border-gray-700 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-[#00ece0] font-mono"
             />
           </div>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-4 py-2 bg-[#0d1117] border border-gray-700 text-white text-sm focus:outline-none focus:border-[#00ece0] font-mono"
-          >
-            <option value="all">Todas las Categorías</option>
-            <option value="Electrónicos">Electrónicos</option>
-            <option value="Periféricos">Periféricos</option>
-            <option value="Accesorios">Accesorios</option>
-            <option value="Almacenamiento">Almacenamiento</option>
-          </select>
         </div>
 
         {/* Tabla */}
@@ -139,10 +119,8 @@ export const ProductsPage = () => {
                 <th className="text-left pb-3 font-mono">ID</th>
                 <th className="text-left pb-3 font-mono">Producto</th>
                 <th className="text-left pb-3 font-mono">Categoría</th>
-                <th className="text-right pb-3 font-mono">Precio</th>
-                <th className="text-right pb-3 font-mono">Stock</th>
-                <th className="text-center pb-3 font-mono">Estado</th>
-                <th className="text-center pb-3 font-mono">Acciones</th>
+                <th className="text-center pb-3 font-mono">Stock</th>
+                <th className="text-center pb-3 font-mono">Ajustes</th>
               </tr>
             </thead>
             <tbody className="text-gray-300">
@@ -155,39 +133,32 @@ export const ProductsPage = () => {
                       {product.category}
                     </span>
                   </td>
-                  <td className="py-3 text-right font-mono">${product.price.toLocaleString()}</td>
-                  <td className="py-3 text-right font-mono">{product.stock}</td>
-                  <td className="py-3 text-center">
-                    <span
-                      className={`px-2 py-1 text-[10px] font-bold uppercase ${
-                        product.status === 'Activo'
-                          ? 'bg-[#00ece0]/10 text-[#00ece0] border border-[#00ece0]/30'
-                          : 'bg-[#ff4655]/10 text-[#ff4655] border border-[#ff4655]/30'
-                      }`}
-                    >
-                      {product.status}
-                    </span>
-                  </td>
+                  <td className="py-3 text-center font-mono font-bold text-lg">{product.stock}</td>
                   <td className="py-3 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button
-                        disabled
-                        className="p-1.5 text-gray-600 cursor-not-allowed transition-colors"
-                        title="Editar solo disponible en Dashboard"
+                        onClick={() => adjustStock(product.id, -1)}
+                        disabled={isReadOnly || product.stock === 0}
+                        className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
+                          isReadOnly || product.stock === 0
+                            ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                            : 'bg-[#ff4655]/10 text-[#ff4655] hover:bg-[#ff4655] hover:text-white'
+                        }`}
+                        title={isReadOnly ? 'Acceso restringido' : 'Reducir stock'}
                       >
-                        <Edit className="w-4 h-4" />
+                        <Minus className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(product.id)}
+                        onClick={() => adjustStock(product.id, 1)}
                         disabled={isReadOnly}
-                        className={`p-1.5 transition-colors ${
+                        className={`w-8 h-8 flex items-center justify-center rounded transition-colors ${
                           isReadOnly
-                            ? 'text-gray-600 cursor-not-allowed'
-                            : 'text-gray-500 hover:text-[#ff4655]'
+                            ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                            : 'bg-[#00ece0]/10 text-[#00ece0] hover:bg-[#00ece0] hover:text-[#0d1117]'
                         }`}
-                        title={isReadOnly ? 'Acceso restringido' : 'Eliminar'}
+                        title={isReadOnly ? 'Acceso restringido' : 'Aumentar stock'}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Plus className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -199,7 +170,7 @@ export const ProductsPage = () => {
 
         {filteredProducts.length === 0 && (
           <div className="text-center py-12 text-gray-500 text-sm">
-            No se encontraron productos que coincidan con los filtros.
+            No se encontraron productos que coincidan con la búsqueda.
           </div>
         )}
       </div>
@@ -207,4 +178,4 @@ export const ProductsPage = () => {
   );
 };
 
-export default ProductsPage;
+export default InventoryPage;

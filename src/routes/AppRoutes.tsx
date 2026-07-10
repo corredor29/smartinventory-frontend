@@ -8,6 +8,8 @@ import { AdminLoginPage } from '../pages/AdminLoginPage';
 import { DashboardPage } from '../pages/dashboard/DashboardPage';
 import { ProductsPage } from '../pages/products/ProductsPage';
 import { InvoicesPage } from '../pages/invoices/InvoicesPage';
+import { CategoriesPage } from '../pages/categories/CategoriesPage';
+import { InventoryPage } from '../pages/inventory/InventoryPage';
 import { CartPage } from '../pages/CartPage';
 import { OrdersPage } from '../pages/OrdersPage';
 import Error404 from '../pages/errors/Error404';
@@ -31,12 +33,13 @@ const MainLayout: React.FC = () => {
   };
 
   const navItems = [
-    { path: '/dashboard', label: 'The Range', desc: 'Dashboard', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
-    { path: '/armeria', label: 'Armería', desc: 'Catálogo', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
-    { path: '/almacenamiento', label: 'Almacenamiento', desc: 'Inventario', roles: ['admin', 'Admin'] as UserRole[] },
-    { path: '/ventas', label: 'Historial Partidas', desc: 'Ventas', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
-    { path: '/economia', label: 'Economía', desc: 'Facturas', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
-    { path: '/killjoy-bot', label: 'Asistente Táctico', desc: 'Killjoy Bot', roles: ['admin', 'administrador', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/dashboard', label: 'Dashboard', desc: 'Métricas y Resumen', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/products', label: 'Productos', desc: 'Catálogo General', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/invoices', label: 'Facturas', desc: 'Documentos de Venta', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/categories', label: 'Categorías', desc: 'Gestión de Tipos', roles: ['admin', 'Admin'] as UserRole[] },
+    { path: '/inventory', label: 'Inventario', desc: 'Ajustes de Stock', roles: ['admin', 'Admin'] as UserRole[] },
+    { path: '/sales', label: 'Ventas', desc: 'Historial de Ventas', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
+    { path: '/chatbot', label: 'Chatbot', desc: 'Asistente IA', roles: ['admin', 'asesor', 'Admin', 'Operator'] as UserRole[] },
   ];
 
   return (
@@ -156,6 +159,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/armeria" element={<MainLayout />} />
           <Route path="/almacenamiento" element={<MainLayout />} />
           <Route path="/ventas" element={<MainLayout />} />
