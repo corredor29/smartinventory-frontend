@@ -310,7 +310,7 @@ export const AdminLoginPage = () => {
 
                 <div>
 
-                  <span className="text-gray-300 font-semibold">Super Admin (admin)</span>
+                  <span className="text-gray-300 font-semibold">Admin</span>
 
                   <span className="text-gray-500 ml-2">- Control total del sistema</span>
 
@@ -324,7 +324,7 @@ export const AdminLoginPage = () => {
 
                 <div>
 
-                  <span className="text-gray-300 font-semibold">Admin Lector (administrador)</span>
+                  <span className="text-gray-300 font-semibold">Asesor</span>
 
                   <span className="text-gray-500 ml-2">- Solo visualización</span>
 

@@ -28,7 +28,7 @@ export const CategoriesPage = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   };
 
   const isAdmin = user?.role === 'admin';

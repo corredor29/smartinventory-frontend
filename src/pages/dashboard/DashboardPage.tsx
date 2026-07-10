@@ -750,7 +750,7 @@ export const DashboardPage = () => {
 
     logout();
 
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
 
   };
 
