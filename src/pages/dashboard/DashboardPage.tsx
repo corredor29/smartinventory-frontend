@@ -1030,6 +1030,20 @@ export const DashboardPage = () => {
 
             )}
 
+            <button
+
+              onClick={handleLogout}
+
+              className="flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 text-[10px] font-mono uppercase tracking-wider transition-all rounded"
+
+            >
+
+              <LogOut className="w-4 h-4" />
+
+              Cerrar Sesión
+
+            </button>
+
           </div>
 
         </div>
