@@ -1,6 +1,5 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, Home } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 const RateLimit429 = () => {
   const navigate = useNavigate();

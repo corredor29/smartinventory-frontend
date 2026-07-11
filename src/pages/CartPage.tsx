@@ -1,88 +1,118 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClientNavbar } from '../components/ClientNavbar';
-import { CheckoutInvoice, type PaymentMethod } from '../components/CheckoutInvoice';
+import { CheckoutInvoice, type PaymentMethod, type CardKind } from '../components/CheckoutInvoice';
+import type { DeliveryLocation } from '../components/AddressPicker';
 import { useCart, type CartItem } from '../context/CartContext';
-import { generateInvoiceId, generateOrderId, useOrders } from '../context/OrdersContext';
 import { useAuth } from '../context/AuthContext';
+import { createSale } from '../api/saleApi';
 import { fmtCurrency } from '../utils/currency';
 
 const CLIP_BTN = 'polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px)';
 
 type CheckoutStep = 'cart' | 'invoice' | 'success';
 
-function generateCheckoutInvoiceId() {
-  return generateInvoiceId();
-}
-
 export function CartPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { items, totalPrice, totalItems, updateQuantity, removeFromCart, clearCart } = useCart();
-  const { addOrder } = useOrders();
 
   const [step, setStep] = useState<CheckoutStep>('cart');
   const [orderSnapshot, setOrderSnapshot] = useState<CartItem[]>([]);
-  const [invoiceId, setInvoiceId] = useState('');
+  const [draftReference, setDraftReference] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [cardKind, setCardKind] = useState<CardKind>('credito');
+  const [delivery, setDelivery] = useState<DeliveryLocation | null>(null);
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactDocument, setContactDocument] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [completedOrderId, setCompletedOrderId] = useState('');
+  const [completedInvoiceId, setCompletedInvoiceId] = useState('');
   const [completedTotal, setCompletedTotal] = useState(0);
   const [completedPayment, setCompletedPayment] = useState<PaymentMethod | null>(null);
+  const [completedDeliveryAddress, setCompletedDeliveryAddress] = useState('');
 
   const handleConfirmCheckout = () => {
     setOrderSnapshot(items.map((item) => ({ ...item })));
-    setInvoiceId(generateCheckoutInvoiceId());
+    setDraftReference(`PRE-${Date.now().toString(36).toUpperCase()}`);
     setPaymentMethod(null);
+    setCardKind('credito');
+    setDelivery(null);
+    setContactPhone('');
+    setContactDocument('');
+    setCheckoutError(null);
     setStep('invoice');
   };
 
   const handleBackToCart = () => {
     setStep('cart');
     setPaymentMethod(null);
+    setCardKind('credito');
+    setDelivery(null);
+    setContactPhone('');
+    setContactDocument('');
+    setCheckoutError(null);
   };
 
   const handleFinalizePurchase = async () => {
-    if (!paymentMethod || orderSnapshot.length === 0 || !user) return;
+    if (
+      !paymentMethod ||
+      !delivery?.address ||
+      !contactPhone.trim() ||
+      !contactDocument.trim() ||
+      orderSnapshot.length === 0 ||
+      !user
+    ) {
+      return;
+    }
 
     setIsProcessing(true);
+    setCheckoutError(null);
+
     try {
-      await new Promise((resolve) => setTimeout(resolve, 900));
+      // El backend resuelve el cliente desde el JWT; no enviar customerId del frontend.
+      const result = await createSale({
+        items: orderSnapshot.map(({ product, quantity }) => ({
+          productId: Number(product.id),
+          quantity,
+        })),
+        origin: 'Manual',
+        paymentMethod:
+          paymentMethod === 'tarjeta'
+            ? cardKind === 'debito'
+              ? 'Debito'
+              : 'Credito'
+            : 'Efectivo',
+        deliveryAddress: delivery.address,
+        deliveryLat: delivery.lat,
+        deliveryLng: delivery.lng,
+        contactPhone: contactPhone.trim(),
+        contactDocument: contactDocument.trim(),
+      });
+
+      if (!result.success || !result.saleId) {
+        setCheckoutError(result.message || 'No se pudo completar la compra.');
+        return;
+      }
 
       const subtotal = orderSnapshot.reduce(
         (sum, item) => sum + item.product.price * item.quantity,
         0,
       );
-      const tax = 0;
-      const total = subtotal + tax;
-      const orderId = generateOrderId();
-
-      addOrder({
-        id: orderId,
-        invoiceId,
-        userId: user.id,
-        items: orderSnapshot.map(({ product, quantity }) => ({
-          productId: product.id,
-          productName: product.name,
-          category: product.category,
-          image: product.image,
-          unitPrice: product.price,
-          quantity,
-        })),
-        totalItems: orderSnapshot.reduce((sum, item) => sum + item.quantity, 0),
-        subtotal,
-        tax,
-        total,
-        paymentMethod,
-        status: 'confirmado',
-        createdAt: new Date().toISOString(),
-      });
+      const total = result.total ?? subtotal;
+      const orderId = `ORD-${result.saleId}`;
+      const invoiceId = result.invoiceNumber || `FAC-${result.saleId}`;
 
       setCompletedOrderId(orderId);
+      setCompletedInvoiceId(invoiceId);
       setCompletedTotal(total);
       setCompletedPayment(paymentMethod);
+      setCompletedDeliveryAddress(delivery.address);
       clearCart();
       setStep('success');
+    } catch {
+      setCheckoutError('No se pudo conectar con el servidor. Verifica tu conexión e intenta de nuevo.');
     } finally {
       setIsProcessing(false);
     }
@@ -97,7 +127,7 @@ export function CartPage() {
     step === 'cart'
       ? `${totalItems} unidad${totalItems !== 1 ? 'es' : ''} seleccionada${totalItems !== 1 ? 's' : ''}`
       : step === 'invoice'
-        ? `Referencia ${invoiceId}`
+        ? `Referencia temporal ${draftReference}`
         : 'Tu pedido ha sido procesado correctamente';
 
   return (
@@ -137,14 +167,27 @@ export function CartPage() {
             <p className="text-gray-500 text-sm font-mono mb-1">
               Pedido: {completedOrderId}
             </p>
+            <p className="text-gray-500 text-sm font-mono mb-1">
+              Factura: {completedInvoiceId}
+            </p>
             <p className="text-white text-lg font-semibold mb-1">
               Total pagado: {fmtCurrency(completedTotal)}
             </p>
             <p className="text-gray-500 text-sm font-mono mb-2">
-              Método: {completedPayment === 'efectivo' ? 'Efectivo' : 'Tarjeta'}
+              Metodo:{' '}
+              {completedPayment === 'efectivo'
+                ? 'Efectivo'
+                : cardKind === 'debito'
+                  ? 'Tarjeta Debito'
+                  : 'Tarjeta Credito'}
             </p>
+            {completedDeliveryAddress && (
+              <p className="text-gray-500 text-sm font-mono mb-2 max-w-md mx-auto">
+                Entrega: {completedDeliveryAddress}
+              </p>
+            )}
             <p className="text-gray-600 text-xs font-mono max-w-sm mx-auto mb-8">
-              Tu pedido ha sido registrado. Puedes consultarlo en Mis Pedidos y Facturas.
+              Tu pedido ha sido registrado en el servidor. Puedes consultarlo en Mis Pedidos y Facturas.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
@@ -158,7 +201,13 @@ export function CartPage() {
                 onClick={() => {
                   setStep('cart');
                   setPaymentMethod(null);
+                  setCardKind('credito');
+                  setDelivery(null);
+                  setContactPhone('');
+                  setContactDocument('');
                   setOrderSnapshot([]);
+                  setCheckoutError(null);
+                  setCompletedDeliveryAddress('');
                 }}
                 className="px-5 py-2.5 bg-[#ff4655] hover:bg-[#e63e4c] text-white text-xs font-bold uppercase tracking-widest transition-colors"
                 style={{ clipPath: CLIP_BTN }}
@@ -169,14 +218,23 @@ export function CartPage() {
           </div>
         ) : step === 'invoice' ? (
           <CheckoutInvoice
-            invoiceId={invoiceId}
+            invoiceId={draftReference}
             items={orderSnapshot}
             totalItems={snapshotItems}
             paymentMethod={paymentMethod}
             onPaymentChange={setPaymentMethod}
+            cardKind={cardKind}
+            onCardKindChange={setCardKind}
+            delivery={delivery}
+            onDeliveryChange={setDelivery}
+            contactPhone={contactPhone}
+            onContactPhoneChange={setContactPhone}
+            contactDocument={contactDocument}
+            onContactDocumentChange={setContactDocument}
             onBack={handleBackToCart}
             onFinalize={handleFinalizePurchase}
             isProcessing={isProcessing}
+            error={checkoutError}
           />
         ) : items.length === 0 ? (
           <div className="text-center py-20 border border-gray-800 bg-[#1f2326]/50">
@@ -218,7 +276,7 @@ export function CartPage() {
                     onClick={() => updateQuantity(product.id, quantity - 1)}
                     className="w-8 h-8 border border-gray-700 text-gray-400 hover:text-white hover:border-[#ff4655]/50 transition-colors text-lg"
                   >
-                    −
+                    -
                   </button>
                   <span className="w-8 text-center text-sm font-mono text-white">{quantity}</span>
                   <button
@@ -251,7 +309,7 @@ export function CartPage() {
                 <span className="text-2xl font-black text-white font-mono">{fmtCurrency(totalPrice)}</span>
               </div>
               <p className="text-[10px] text-gray-600 font-mono mb-4 uppercase tracking-wider">
-                Paso 1 de 2 — Revisión del carrito
+                Paso 1 de 2 - Revisión del carrito
               </p>
               <button
                 onClick={handleConfirmCheckout}

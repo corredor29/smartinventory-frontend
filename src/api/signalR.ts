@@ -5,6 +5,7 @@ const HUB_URL = import.meta.env.VITE_SIGNALR_HUB_URL || "http://localhost:5299/h
 export interface ChatMessageDto {
   chatMessageId: number;
   chatSessionId: number;
+  senderTypeId?: number;
   senderTypeName: string;
   content: string;
   sentAt: string;
@@ -13,6 +14,8 @@ export interface ChatMessageDto {
 export interface ChatEscalationNotification {
   chatEscalationId: number;
   chatSessionId: number;
+  customerId?: number | null;
+  customerName?: string | null;
   reason: string | null;
   statusName: string;
   assignedUserName: string | null;
@@ -86,4 +89,19 @@ export function onNewEscalation(callback: (escalation: ChatEscalationNotificatio
 
 export function offNewEscalation(callback: (escalation: ChatEscalationNotification) => void): void {
   getChatConnection().off("NewEscalation", callback);
+}
+
+export interface EscalationResolvedPayload {
+  chatEscalationId: number;
+  chatSessionId: number;
+  statusName: string;
+  message: string;
+}
+
+export function onEscalationResolved(callback: (payload: EscalationResolvedPayload) => void): void {
+  getChatConnection().on("EscalationResolved", callback);
+}
+
+export function offEscalationResolved(callback: (payload: EscalationResolvedPayload) => void): void {
+  getChatConnection().off("EscalationResolved", callback);
 }

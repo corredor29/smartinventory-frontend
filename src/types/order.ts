@@ -23,4 +23,9 @@ export interface Order {
   paymentMethod: PaymentMethod;
   status: OrderStatus;
   createdAt: string;
+  deliveryAddress?: string | null;
+  deliveryLat?: number | null;
+  deliveryLng?: number | null;
+  contactPhone?: string | null;
+  contactDocument?: string | null;
 }

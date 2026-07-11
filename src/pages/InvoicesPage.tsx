@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Download, Loader2 } from 'lucide-react';
 import { ClientNavbar } from '../components/ClientNavbar';
 import { OrderItemsTable } from '../components/OrderItemsTable';
-import { useOrders } from '../context/OrdersContext';
+import { useAuth } from '../context/AuthContext';
+import { getMyInvoices, type InvoiceDto } from '../api/invoiceApi';
+import { getMySales } from '../api/saleApi';
+import { mapInvoiceToOrder, mapSaleToOrder } from '../utils/orderMappers';
+import type { Order, PaymentMethod } from '../types/order';
 import { fmtCurrency, fmtDate } from '../utils/currency';
+import { downloadInvoicePdfClient } from '../utils/invoicePdf';
 
 const CLIP_BTN = 'polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px)';
 
@@ -12,10 +18,45 @@ const paymentLabel = { efectivo: 'Efectivo', tarjeta: 'Tarjeta' } as const;
 export function InvoicesPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { orders } = useOrders();
+  const { user } = useAuth();
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [invoiceByNumber, setInvoiceByNumber] = useState<Record<string, InvoiceDto>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const highlightInvoiceId = (location.state as { invoiceId?: string } | null)?.invoiceId;
+
+  useEffect(() => {
+    if (!user) return;
+
+    Promise.all([getMyInvoices(), getMySales()])
+      .then(([invoices, sales]) => {
+        const paymentBySaleId = new Map<number, PaymentMethod>();
+        for (const sale of sales) {
+          const mapped = mapSaleToOrder(sale, user.id);
+          paymentBySaleId.set(sale.saleId, mapped.paymentMethod);
+        }
+
+        const byNumber: Record<string, InvoiceDto> = {};
+        const mapped = invoices.map((invoice) => {
+          byNumber[invoice.invoiceNumber] = invoice;
+          const order = mapInvoiceToOrder(invoice, user.id);
+          const payment = paymentBySaleId.get(invoice.saleId);
+          return payment ? { ...order, paymentMethod: payment } : order;
+        });
+
+        setInvoiceByNumber(byNumber);
+        setOrders(mapped);
+      })
+      .catch((err) => {
+        console.error('Error cargando facturas:', err);
+        setError('No se pudieron cargar tus facturas.');
+      })
+      .finally(() => setLoading(false));
+  }, [user]);
 
   useEffect(() => {
     if (highlightInvoiceId) {
@@ -31,6 +72,24 @@ export function InvoicesPage() {
     ? orders.find((order) => order.invoiceId === selectedInvoiceId)
     : null;
 
+  const selectedInvoice = selectedInvoiceId
+    ? invoiceByNumber[selectedInvoiceId]
+    : undefined;
+
+  const handleDownloadPdf = () => {
+    if (!selectedInvoice || downloading) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      downloadInvoicePdfClient(selectedInvoice);
+    } catch (err) {
+      console.error('Error generando PDF:', err);
+      setError('No se pudo generar el PDF de la factura.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0f1923] font-sans">
       <ClientNavbar />
@@ -40,11 +99,20 @@ export function InvoicesPage() {
           <span className="text-[10px] font-mono text-[#00ece0] uppercase tracking-[0.3em]">Facturación</span>
           <h1 className="text-2xl font-black text-white uppercase tracking-tight mt-1">Facturas</h1>
           <p className="text-gray-500 text-sm mt-1 font-mono">
-            {orders.length} factura{orders.length !== 1 ? 's' : ''} emitida{orders.length !== 1 ? 's' : ''}
+            {loading
+              ? 'Cargando...'
+              : `${orders.length} factura${orders.length !== 1 ? 's' : ''} emitida${orders.length !== 1 ? 's' : ''}`}
           </p>
+          {error && (
+            <div className="mt-3 text-xs text-red-400 bg-red-500/10 border border-red-500/30 px-3 py-2">
+              {error}
+            </div>
+          )}
         </div>
 
-        {orders.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-16 text-gray-500 text-sm font-mono">Cargando facturas...</div>
+        ) : orders.length === 0 ? (
           <div
             className="text-center py-16 border border-gray-800 bg-[#1f2326]/50"
             style={{ clipPath: 'polygon(16px 0, 100% 0, 100% 100%, 0 100%, 0 16px)' }}
@@ -136,12 +204,30 @@ export function InvoicesPage() {
                       <p className="text-[10px] text-gray-600 font-mono uppercase tracking-wider">
                         Documento generado al confirmar la compra
                       </p>
-                      <button
-                        onClick={() => navigate('/pedidos', { state: { orderId: selectedOrder.id } })}
-                        className="text-[10px] font-mono uppercase tracking-widest text-[#00ece0] hover:text-white transition-colors shrink-0"
-                      >
-                        Ver pedido asociado →
-                      </button>
+                      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center shrink-0">
+                        {selectedInvoice && (
+                          <button
+                            type="button"
+                            disabled={downloading}
+                            onClick={handleDownloadPdf}
+                            className="inline-flex items-center gap-2 px-3 py-2 border border-[#00ece0]/40 text-[#00ece0] hover:bg-[#00ece0]/10 disabled:opacity-50 text-[10px] font-mono uppercase tracking-widest transition-colors"
+                            style={{ clipPath: CLIP_BTN }}
+                          >
+                            {downloading ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Download className="w-3.5 h-3.5" />
+                            )}
+                            Descargar PDF
+                          </button>
+                        )}
+                        <button
+                          onClick={() => navigate('/pedidos', { state: { orderId: selectedOrder.id } })}
+                          className="text-[10px] font-mono uppercase tracking-widest text-[#00ece0] hover:text-white transition-colors"
+                        >
+                          Ver pedido asociado →
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

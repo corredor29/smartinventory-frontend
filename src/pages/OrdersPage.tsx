@@ -3,7 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ClientNavbar } from '../components/ClientNavbar';
 import { OrderItemsTable } from '../components/OrderItemsTable';
 import { OrderStatusBadge } from '../components/OrderStatusBadge';
-import { useOrders } from '../context/OrdersContext';
+import { useAuth } from '../context/AuthContext';
+import { getMySales } from '../api/saleApi';
+import { mapSaleToOrder } from '../utils/orderMappers';
+import type { Order } from '../types/order';
 import { fmtCurrency, fmtDate } from '../utils/currency';
 
 const CLIP_BTN = 'polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px)';
@@ -13,10 +16,48 @@ const paymentLabel = { efectivo: 'Efectivo', tarjeta: 'Tarjeta' } as const;
 export function OrdersPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { orders } = useOrders();
+  const { user } = useAuth();
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const highlightOrderId = (location.state as { orderId?: string } | null)?.orderId;
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    getMySales()
+      .then((sales) => {
+        if (!cancelled) setOrders(sales.map((sale) => mapSaleToOrder(sale, user.id)));
+      })
+      .catch((err) => {
+        console.error('Error cargando pedidos:', err);
+        if (!cancelled) {
+          const status = err?.response?.status as number | undefined;
+          setError(
+            status === 401 || status === 403
+              ? 'Tu sesión expiró. Cierra sesión e inicia de nuevo para ver tus pedidos.'
+              : 'No se pudieron cargar tus pedidos. Intenta recargar la página.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (highlightOrderId) {
@@ -37,11 +78,18 @@ export function OrdersPage() {
           <span className="text-[10px] font-mono text-[#00ece0] uppercase tracking-[0.3em]">Historial</span>
           <h1 className="text-2xl font-black text-white uppercase tracking-tight mt-1">Mis Pedidos</h1>
           <p className="text-gray-500 text-sm mt-1 font-mono">
-            {orders.length} pedido{orders.length !== 1 ? 's' : ''} registrado{orders.length !== 1 ? 's' : ''}
+            {loading ? 'Cargando...' : `${orders.length} pedido${orders.length !== 1 ? 's' : ''} registrado${orders.length !== 1 ? 's' : ''}`}
           </p>
+          {error && (
+            <div className="mt-3 text-xs text-red-400 bg-red-500/10 border border-red-500/30 px-3 py-2">
+              {error}
+            </div>
+          )}
         </div>
 
-        {orders.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-16 text-gray-500 text-sm font-mono">Cargando pedidos...</div>
+        ) : orders.length === 0 ? (
           <div
             className="text-center py-16 border border-gray-800 bg-[#1f2326]/50"
             style={{ clipPath: 'polygon(16px 0, 100% 0, 100% 100%, 0 100%, 0 16px)' }}
@@ -110,6 +158,29 @@ export function OrdersPage() {
                           <div className="text-white capitalize">{order.status.replace('_', ' ')}</div>
                         </div>
                       </div>
+
+                      {(order.deliveryAddress || order.contactPhone || order.contactDocument) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 text-xs font-mono">
+                          {order.deliveryAddress && (
+                            <div className="bg-[#0f1923]/50 border border-gray-800/60 p-3 sm:col-span-3">
+                              <div className="text-[9px] text-gray-600 uppercase tracking-widest mb-1">Dirección</div>
+                              <div className="text-white break-words">{order.deliveryAddress}</div>
+                            </div>
+                          )}
+                          {order.contactPhone && (
+                            <div className="bg-[#0f1923]/50 border border-gray-800/60 p-3">
+                              <div className="text-[9px] text-gray-600 uppercase tracking-widest mb-1">Teléfono</div>
+                              <div className="text-white">{order.contactPhone}</div>
+                            </div>
+                          )}
+                          {order.contactDocument && (
+                            <div className="bg-[#0f1923]/50 border border-gray-800/60 p-3">
+                              <div className="text-[9px] text-gray-600 uppercase tracking-widest mb-1">Documento</div>
+                              <div className="text-white">{order.contactDocument}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       <OrderItemsTable
                         items={order.items}

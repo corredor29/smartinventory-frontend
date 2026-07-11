@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { mockProducts } from '../api/productApi';
+import { getProductById } from '../api/productApi';
 import { login as loginApi, register as registerApi } from '../api/authApi';
 import transitionGif from '../assets/register-transition.gif';
 
@@ -14,12 +15,12 @@ interface LoginLocationState {
   intent?: 'buy';
   productId?: string;
 }
-function mapBackendRole(role: string): 'Admin' | 'Operator' | 'Client' {
+function mapBackendRole(role: string): 'admin' | 'asesor' | 'Client' {
   switch (role) {
     case 'Administrador':
-      return 'Admin';
+      return 'admin';
     case 'Asesor':
-      return 'Operator';
+      return 'asesor';
     default:
       return 'Client';
   }
@@ -40,6 +41,8 @@ export const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -88,17 +91,23 @@ export const LoginPage = () => {
       const role = mapBackendRole(result.role);
 
       login(result.token, {
-        id: result.email,
+        id: String(result.userId ?? result.email),
         username: result.name,
         email: result.email,
         role,
         agentName: name || undefined,
+        userId: result.userId,
+        customerId: result.customerId ?? null,
       });
 
       if (role === 'Client') {
         if (loginState.intent === 'buy' && loginState.productId) {
-          const product = mockProducts.find((p) => p.id === loginState.productId);
-          if (product) addToCart(product);
+          try {
+            const product = await getProductById(loginState.productId);
+            addToCart(product);
+          } catch {
+            // Si el producto ya no existe, igual redirigimos al carrito
+          }
           navigate('/carrito');
         } else {
           navigate(loginState.from?.pathname || '/');
@@ -222,27 +231,49 @@ export const LoginPage = () => {
 
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Contraseña</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 bg-[#1f2326] border border-gray-700 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#ff4655] focus:ring-1 focus:ring-[#ff4655] transition-all"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 pr-11 bg-[#1f2326] border border-gray-700 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#ff4655] focus:ring-1 focus:ring-[#ff4655] transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#ff4655] transition-colors"
+                  title={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             {mode === 'register' && (
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Confirmar contraseña</label>
-                <input
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 bg-[#1f2326] border border-gray-700 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#ff4655] focus:ring-1 focus:ring-[#ff4655] transition-all"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-3.5 py-2.5 pr-11 bg-[#1f2326] border border-gray-700 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#ff4655] focus:ring-1 focus:ring-[#ff4655] transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#ff4655] transition-colors"
+                    title={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -268,6 +299,7 @@ export const LoginPage = () => {
                 ¿No tienes cuenta?{' '}
                 <button onClick={() => switchMode('register')} className="text-[#00ece0] font-semibold hover:underline">
                   Regístrate
+                  
                 </button>
               </>
             ) : (

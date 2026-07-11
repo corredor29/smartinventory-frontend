@@ -1,75 +1,47 @@
-# React + TypeScript + Vite
+# SmartInventory Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite + TypeScript. El front **solo** habla con la API .NET (`VITE_DOTNET_API_URL`); nunca con el chatbot Python.
 
-Currently, two official plugins are available:
+## Arranque local (stack completo)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Necesitas **4 procesos** (Postgres + 3 apps):
 
-## React Compiler
+| Servicio | Puerto | Repo / comando |
+|---|---|---|
+| PostgreSQL | `5433` | `SmartInventoryAPI` → `docker compose up -d` |
+| API .NET | `5299` | `SmartInventoryAPI/Api` → `dotnet run` |
+| Chatbot Python | `8000` | `smartinventory-chatbot` → ver README del repo |
+| Frontend Vite | `5173` | este repo → `npm run dev` |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 1. Variables
 
-## Expanding the ESLint configuration
+Copia `.env.example` si existe, o define en `.env`:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```env
+VITE_DOTNET_API_URL=http://localhost:5299/api
+VITE_SIGNALR_HUB_URL=http://localhost:5299/hubs/chat
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 2. Instalar y correr
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+npm install
+npm run dev
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Abre `http://localhost:5173`.
 
+### Chatbot / soporte
+
+- Página dedicada: `/chatbot`
+- FAB flotante en el resto de la app (misma sesión en `localStorage`: `smart_inventory_chat_session`)
+- Cola de asesores: `/support` (roles Administrador / Asesor)
+- Si Python (`:8000`) está caído, la UI muestra un error claro (el API no crashea)
+
+### Flujo
+
+```text
+React → POST /api/chat/message → .NET → POST http://localhost:8000/chat/message
+Python tools → .NET (productos, stock, ventas, escalaciones)
+Escalación → SignalR /hubs/chat → SupportPage ↔ cliente
 ```
