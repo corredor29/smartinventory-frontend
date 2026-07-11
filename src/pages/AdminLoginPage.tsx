@@ -2,6 +2,18 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { login as loginApi } from '../api/authApi';
+
+function mapBackendRole(role: string): 'admin' | 'asesor' | 'Client' {
+  switch (role) {
+    case 'Administrador':
+      return 'admin';
+    case 'Asesor':
+      return 'asesor';
+    default:
+      return 'Client';
+  }
+}
 
 export const AdminLoginPage = () => {
   const navigate = useNavigate();
@@ -19,37 +31,28 @@ export const AdminLoginPage = () => {
     setLoading(true);
 
     try {
-      // Simulación de autenticación administrativa
-      await new Promise((r) => setTimeout(r, 800));
-      
-      const emailLower = email.toLowerCase();
-      
-      // Lógica de roles para acceso administrativo
-      if (emailLower.includes('admin') || emailLower.includes('root') || emailLower.includes('super')) {
-        // Admin - Control total
-        login('admin-token', {
-          id: 'admin-001',
-          username: email.split('@')[0] || 'admin',
-          email,
-          role: 'admin',
-          agentName: 'COMMANDER',
-        });
-        navigate('/dashboard');
-      } else if (emailLower.includes('asesor') || emailLower.includes('lector') || emailLower.includes('view')) {
-        // Asesor - Solo lectura
-        login('reader-token', {
-          id: 'asesor-001',
-          username: email.split('@')[0] || 'asesor',
-          email,
-          role: 'asesor',
-          agentName: 'OBSERVER',
-        });
-        navigate('/dashboard');
-      } else {
+      const result = await loginApi({ email, password });
+      const role = mapBackendRole(result.role);
+
+      if (role === 'Client') {
         setError('Credenciales no autorizadas para acceso administrativo');
+        return;
       }
-    } catch (err) {
-      setError('Error de autenticación. Intente nuevamente.');
+
+      login(result.token, {
+        id: String(result.userId ?? result.email),
+        username: result.name,
+        email: result.email,
+        role,
+        agentName: result.name || undefined,
+        userId: result.userId,
+        customerId: result.customerId ?? null,
+      });
+      navigate('/dashboard');
+    } catch (err: unknown) {
+      const backendMessage =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(backendMessage || 'Error de autenticación. Intente nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -61,7 +64,6 @@ export const AdminLoginPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0f1923] p-4">
       <div className="w-full max-w-md">
-        {/* Header con branding táctico */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-[#ff4655] rotate-45 mb-4">
             <Shield className="w-8 h-8 text-[#0f1923] -rotate-45" />
@@ -74,9 +76,7 @@ export const AdminLoginPage = () => {
           </p>
         </div>
 
-        {/* Formulario de autenticación */}
         <div className="bg-[#1f2326] border border-gray-800 p-6 relative">
-          {/* Decoración de esquinas */}
           <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-[#ff4655]" />
           <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-[#ff4655]" />
           <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-[#ff4655]" />
@@ -147,7 +147,6 @@ export const AdminLoginPage = () => {
             </button>
           </form>
 
-          {/* Información de roles */}
           <div className="mt-6 pt-4 border-t border-gray-800">
             <p className="text-[10px] text-gray-600 font-mono uppercase tracking-wider mb-3">Niveles de Acceso:</p>
             <div className="space-y-2">
@@ -169,7 +168,6 @@ export const AdminLoginPage = () => {
           </div>
         </div>
 
-        {/* Footer táctico */}
         <div className="mt-6 text-center">
           <button
             onClick={() => navigate('/')}

@@ -1,9 +1,25 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Search, AlertTriangle, Package, DollarSign, Clock, Lock, TrendingUp, ShoppingCart, FileText, LogOut } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, AlertTriangle, Package, DollarSign, Clock, Lock, TrendingUp, ShoppingCart, FileText, ImagePlus, History } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { getDashboardMetrics, type DashboardMetrics } from '../../api/dashboardApi';
+import {
+  getPublicProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  uploadProductImage,
+  resolveProductImageUrl,
+} from '../../api/productApi';
+import { getCategories, type CategoryDto } from '../../api/categoryApi';
+import { adjustStock } from '../../api/inventoryApi';
+import {
+  getAllMovements,
+  type InventoryMovementDto,
+} from '../../api/inventoryMovementApi';
+import { StaffHeader } from '../../components/StaffHeader';
+import type { Product as ApiProduct } from '../../types/product';
 
 // ─── Tipos de Datos ────────────────────────────────────────────────────────────
 
@@ -16,6 +32,7 @@ interface Product {
   minStock: number;
   status: 'active' | 'critical' | 'out_of_stock';
   lastUpdated: string;
+  imageUrl?: string;
 }
 
 interface Alert {
@@ -26,126 +43,45 @@ interface Alert {
   timestamp: string;
 }
 
-interface Report {
-  id: string;
-  type: 'sale' | 'restock' | 'adjustment';
-  description: string;
-  amount: number;
-  timestamp: string;
+const DEFAULT_MIN_STOCK = 5;
+
+function mapApiProductToDashboard(p: ApiProduct): Product {
+  const status: Product['status'] =
+    p.stock === 0 ? 'out_of_stock' : p.stock <= DEFAULT_MIN_STOCK ? 'critical' : 'active';
+  const raw = p.image || '';
+  const imageUrl =
+    !raw || raw.includes('placeholder')
+      ? ''
+      : raw.includes('/uploads/')
+        ? raw.slice(raw.indexOf('/uploads/'))
+        : raw;
+  return {
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    price: p.price,
+    stock: p.stock,
+    minStock: DEFAULT_MIN_STOCK,
+    status,
+    lastUpdated: new Date().toISOString().split('T')[0],
+    imageUrl,
+  };
 }
 
-// ─── Datos Mock (SOLO para la tabla de inventario, pendiente de conectar a productApi) ───
-
-const initialProducts: Product[] = [
-  {
-    id: 'PRD-001',
-    name: 'NVIDIA RTX 4090 Founders Edition',
-    category: 'GPU',
-    price: 1599,
-    stock: 3,
-    minStock: 5,
-    status: 'critical',
-    lastUpdated: '2024-01-15',
-  },
-  {
-    id: 'PRD-002',
-    name: 'AMD Ryzen 9 7950X',
-    category: 'CPU',
-    price: 699,
-    stock: 12,
-    minStock: 10,
-    status: 'active',
-    lastUpdated: '2024-01-14',
-  },
-  {
-    id: 'PRD-003',
-    name: 'Samsung 990 Pro 2TB NVMe',
-    category: 'Storage',
-    price: 189,
-    stock: 25,
-    minStock: 15,
-    status: 'active',
-    lastUpdated: '2024-01-13',
-  },
-  {
-    id: 'PRD-004',
-    name: 'Corsair DDR5 32GB 6000MHz',
-    category: 'RAM',
-    price: 149,
-    stock: 4,
-    minStock: 8,
-    status: 'critical',
-    lastUpdated: '2024-01-15',
-  },
-  {
-    id: 'PRD-005',
-    name: 'ASUS ROG Strix RTX 4080',
-    category: 'GPU',
-    price: 1199,
-    stock: 0,
-    minStock: 5,
-    status: 'out_of_stock',
-    lastUpdated: '2024-01-12',
-  },
-  {
-    id: 'PRD-006',
-    name: 'Intel Core i9-14900K',
-    category: 'CPU',
-    price: 589,
-    stock: 18,
-    minStock: 10,
-    status: 'active',
-    lastUpdated: '2024-01-14',
-  },
-];
-
-const initialAlerts: Alert[] = [
-  {
-    id: 'ALT-001',
-    type: 'critical',
-    message: 'Stock crítico: NVIDIA RTX 4090 (3 unidades)',
-    productId: 'PRD-001',
-    timestamp: '2024-01-15 09:30',
-  },
-  {
-    id: 'ALT-002',
-    type: 'critical',
-    message: 'Producto agotado: ASUS ROG Strix RTX 4080',
-    productId: 'PRD-005',
-    timestamp: '2024-01-15 08:15',
-  },
-  {
-    id: 'ALT-003',
-    type: 'warning',
-    message: 'Stock bajo: Corsair DDR5 32GB (4 unidades)',
-    productId: 'PRD-004',
-    timestamp: '2024-01-15 07:45',
-  },
-];
-
-const initialReports: Report[] = [
-  {
-    id: 'RPT-001',
-    type: 'sale',
-    description: 'Venta: NVIDIA RTX 4090 x2',
-    amount: 3198,
-    timestamp: '2024-01-15 14:30',
-  },
-  {
-    id: 'RPT-002',
-    type: 'restock',
-    description: 'Reposición: AMD Ryzen 9 7950X x10',
-    amount: -6990,
-    timestamp: '2024-01-15 10:00',
-  },
-  {
-    id: 'RPT-003',
-    type: 'sale',
-    description: 'Venta: Samsung 990 Pro 2TB x5',
-    amount: 945,
-    timestamp: '2024-01-15 09:15',
-  },
-];
+function buildAlertsFromProducts(products: Product[]): Alert[] {
+  return products
+    .filter((p) => p.status === 'critical' || p.status === 'out_of_stock')
+    .map((p) => ({
+      id: `ALT-${p.id}`,
+      type: (p.status === 'out_of_stock' ? 'critical' : 'warning') as Alert['type'],
+      message:
+        p.status === 'out_of_stock'
+          ? `Producto agotado: ${p.name}`
+          : `Stock crítico: ${p.name} (${p.stock} unidades)`,
+      productId: p.id,
+      timestamp: new Date().toLocaleString('es-CO'),
+    }));
+}
 
 // Colores asignados por índice para el gráfico de categorías (el backend no envía color)
 const CATEGORY_COLORS = ['#00ece0', '#ff4655', '#fbbf24', '#c084fc', '#34d399'];
@@ -189,9 +125,10 @@ const ProductModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
   product?: Product;
-  onSave: (product: Omit<Product, 'id' | 'lastUpdated'>) => void;
+  onSave: (product: Omit<Product, 'id' | 'lastUpdated'>) => void | Promise<void>;
   isReadOnly: boolean;
-}> = ({ isOpen, onClose, product, onSave, isReadOnly }) => {
+  categories: string[];
+}> = ({ isOpen, onClose, product, onSave, isReadOnly, categories }) => {
   const [formData, setFormData] = useState(
     product || {
       name: '',
@@ -200,17 +137,81 @@ const ProductModal: React.FC<{
       stock: 0,
       minStock: 5,
       status: 'active' as const,
+      imageUrl: '',
     }
   );
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(product?.imageUrl || null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setFormData(
+      product || {
+        name: '',
+        category: '',
+        price: 0,
+        stock: 0,
+        minStock: 5,
+        status: 'active' as const,
+        imageUrl: '',
+      },
+    );
+    setImageFile(null);
+    setImagePreview(product?.imageUrl || null);
+    setFormError(null);
+  }, [isOpen, product]);
 
   if (!isOpen) return null;
 
   const CLIP_MODAL = 'polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px)';
 
+  const handleImagePick = (file: File | null) => {
+    if (!file) {
+      setImageFile(null);
+      setImagePreview(formData.imageUrl || null);
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setFormError('El archivo debe ser una imagen (JPG, PNG, WEBP o GIF).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFormError('La imagen no puede superar 5 MB.');
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setFormError(null);
+  };
+
+  const handleSaveClick = async () => {
+    if (isReadOnly || saving) return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      let imageUrl = formData.imageUrl?.trim() || '';
+      if (imageFile) {
+        imageUrl = await uploadProductImage(imageFile);
+      }
+      await onSave({ ...formData, imageUrl });
+    } catch (err: unknown) {
+      const message =
+        (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data
+          ?.message ||
+        (err as { message?: string })?.message ||
+        'No se pudo guardar el producto.';
+      setFormError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <div
-        className="w-full max-w-lg bg-[#16191b] border border-gray-700 p-6 relative"
+        className="w-full max-w-lg bg-[#16191b] border border-gray-700 p-6 relative max-h-[90vh] overflow-y-auto"
         style={{ clipPath: CLIP_MODAL }}
       >
         {/* Header */}
@@ -225,6 +226,12 @@ const ProductModal: React.FC<{
             </div>
           )}
         </div>
+
+        {formError && (
+          <div className="mb-4 px-3 py-2 bg-[#ff4655]/10 border border-[#ff4655]/30 text-[#ff4655] text-xs">
+            {formError}
+          </div>
+        )}
 
         {/* Form */}
         <div className="space-y-4">
@@ -253,12 +260,9 @@ const ProductModal: React.FC<{
               className="w-full px-4 py-2 bg-[#0d1117] border border-gray-700 text-white text-sm focus:outline-none focus:border-[#00ece0] disabled:opacity-50 disabled:cursor-not-allowed font-mono"
             >
               <option value="">Seleccionar...</option>
-              <option value="GPU">GPU</option>
-              <option value="CPU">CPU</option>
-              <option value="RAM">RAM</option>
-              <option value="Storage">Storage</option>
-              <option value="Motherboard">Motherboard</option>
-              <option value="PSU">PSU</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
             </select>
           </div>
 
@@ -278,10 +282,12 @@ const ProductModal: React.FC<{
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                Stock Actual
+                Stock Actual {product ? '(se ajusta al guardar)' : '(stock inicial)'}
               </label>
               <input
                 type="number"
+                min={0}
+                step={1}
                 value={formData.stock}
                 onChange={(e) => setFormData({ ...formData, stock: Number(e.target.value) })}
                 disabled={isReadOnly}
@@ -304,22 +310,62 @@ const ProductModal: React.FC<{
               placeholder="5"
             />
           </div>
+
+          {!isReadOnly && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Imagen del producto
+              </label>
+              <div className="flex gap-4 items-start">
+                <div className="w-24 h-24 border border-gray-700 bg-[#0d1117] flex items-center justify-center overflow-hidden shrink-0">
+                  {imagePreview ? (
+                    <img
+                      src={
+                        imagePreview.startsWith('/uploads/')
+                          ? resolveProductImageUrl(imagePreview)
+                          : imagePreview
+                      }
+                      alt="Vista previa"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ImagePlus className="w-6 h-6 text-gray-600" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 bg-[#0d1117] border border-gray-700 hover:border-[#00ece0] text-gray-300 hover:text-[#00ece0] text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors">
+                    <ImagePlus className="w-3.5 h-3.5" />
+                    {imageFile ? 'Cambiar archivo' : 'Subir imagen'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(e) => handleImagePick(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <p className="text-[10px] text-gray-600">JPG, PNG, WEBP o GIF · máx. 5 MB</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
         <div className="flex gap-3 mt-6 pt-4 border-t border-gray-800">
           <button
             onClick={onClose}
-            className="flex-1 py-2 border border-gray-700 hover:border-gray-600 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors"
+            disabled={saving}
+            className="flex-1 py-2 border border-gray-700 hover:border-gray-600 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             Cancelar
           </button>
           {!isReadOnly && (
             <button
-              onClick={() => onSave(formData)}
-              className="flex-1 py-2 bg-[#00ece0] hover:bg-[#00d4ce] text-[#0d1117] text-xs font-bold uppercase tracking-wider transition-colors"
+              onClick={handleSaveClick}
+              disabled={saving}
+              className="flex-1 py-2 bg-[#00ece0] hover:bg-[#00d4ce] text-[#0d1117] text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
             >
-              {product ? 'Guardar Cambios' : 'Agregar Producto'}
+              {saving ? 'Guardando...' : product ? 'Guardar Cambios' : 'Agregar Producto'}
             </button>
           )}
           {isReadOnly && (
@@ -340,24 +386,25 @@ const ProductModal: React.FC<{
 // ─── Dashboard Principal ────────────────────────────────────────────────────────
 
 export const DashboardPage = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login', { replace: true });
-  };
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [categoryDtos, setCategoryDtos] = useState<CategoryDto[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [productsError, setProductsError] = useState<string | null>(null);
 
   // ─── Métricas reales del backend ────────────────────────────────────────────
   const [metricsData, setMetricsData] = useState<DashboardMetrics | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [recentMovements, setRecentMovements] = useState<InventoryMovementDto[]>([]);
+  const [loadingMovements, setLoadingMovements] = useState(true);
 
   useEffect(() => {
     getDashboardMetrics()
@@ -369,11 +416,46 @@ export const DashboardPage = () => {
       .finally(() => setLoadingMetrics(false));
   }, []);
 
+  useEffect(() => {
+    getAllMovements()
+      .then((data) => {
+        const sorted = [...data].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        setRecentMovements(sorted.slice(0, 10));
+      })
+      .catch((err) => {
+        console.error('Error cargando movimientos recientes:', err);
+      })
+      .finally(() => setLoadingMovements(false));
+  }, []);
+
+  useEffect(() => {
+    Promise.all([getPublicProducts(), getCategories()])
+      .then(([apiProducts, cats]) => {
+        const mapped = apiProducts.map(mapApiProductToDashboard);
+        setProducts(mapped);
+        setAlerts(buildAlertsFromProducts(mapped));
+        setCategoryDtos(cats);
+      })
+      .catch((err) => {
+        console.error('Error cargando productos del dashboard:', err);
+        setProductsError('No se pudieron cargar los productos.');
+      })
+      .finally(() => setLoadingProducts(false));
+  }, []);
+
+  const categoryNames = useMemo(() => {
+    const fromApi = categoryDtos.map((c) => c.name);
+    const fromProducts = products.map((p) => p.category).filter(Boolean);
+    return Array.from(new Set([...fromApi, ...fromProducts])).sort();
+  }, [categoryDtos, products]);
+
   const userRoleLower = user?.role?.toLowerCase();
   const isAdmin = userRoleLower === 'admin';
-  const isReadOnly = userRoleLower === 'asesor';
+  const isReadOnly = userRoleLower === 'asesor' || userRoleLower === 'operator';
 
-  // ─── Filtros (sobre la tabla de inventario, aún mock) ────────────────────────
+  // ─── Filtros ─────────────────────────────────────────────────────────────────
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -399,50 +481,90 @@ export const DashboardPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
     if (isReadOnly) return;
-    if (window.confirm('¿Estás seguro de eliminar este producto?')) {
-      setProducts(products.filter((p) => p.id !== productId));
-      setAlerts(alerts.filter((a) => a.productId !== productId));
+    if (!window.confirm('¿Estás seguro de eliminar este producto?')) return;
+    try {
+      await deleteProduct(productId);
+      const next = products.filter((p) => p.id !== productId);
+      setProducts(next);
+      setAlerts(buildAlertsFromProducts(next));
+    } catch (err) {
+      console.error('Error eliminando producto:', err);
+      setProductsError('No se pudo eliminar el producto.');
     }
   };
 
-  const handleSaveProduct = (productData: Omit<Product, 'id' | 'lastUpdated'>) => {
+  const handleSaveProduct = async (productData: Omit<Product, 'id' | 'lastUpdated'>) => {
     if (isReadOnly) return;
 
-    if (selectedProduct) {
-      setProducts(
-        products.map((p) =>
-          p.id === selectedProduct.id
-            ? {
-                ...p,
-                ...productData,
-                status:
-                  productData.stock === 0
-                    ? 'out_of_stock'
-                    : productData.stock <= productData.minStock
-                    ? 'critical'
-                    : 'active',
-                lastUpdated: new Date().toISOString().split('T')[0],
-              }
-            : p
-        )
-      );
-    } else {
-      const newProduct: Product = {
-        ...productData,
-        id: `PRD-${String(products.length + 1).padStart(3, '0')}`,
-        status:
+    const category = categoryDtos.find(
+      (c) => c.name.toLowerCase() === productData.category.toLowerCase()
+    );
+    if (!category) {
+      setProductsError('Selecciona una categoría válida existente en el sistema.');
+      return;
+    }
+
+    try {
+      if (selectedProduct) {
+        const updated = await updateProduct(selectedProduct.id, {
+          name: productData.name,
+          price: productData.price,
+          categoryId: category.categoryId,
+          imageUrl: productData.imageUrl || undefined,
+        });
+
+        const stockDelta = productData.stock - selectedProduct.stock;
+        if (stockDelta !== 0) {
+          await adjustStock(
+            Number(selectedProduct.id),
+            stockDelta,
+            stockDelta > 0
+              ? 'Ajuste desde edición de producto'
+              : 'Ajuste por reducción de stock',
+          );
+        }
+
+        const mapped = mapApiProductToDashboard(updated);
+        mapped.stock = productData.stock;
+        mapped.minStock = productData.minStock;
+        mapped.status =
           productData.stock === 0
             ? 'out_of_stock'
-            : productData.stock <= productData.minStock
-            ? 'critical'
-            : 'active',
-        lastUpdated: new Date().toISOString().split('T')[0],
-      };
-      setProducts([...products, newProduct]);
+            : productData.stock <= mapped.minStock
+              ? 'critical'
+              : 'active';
+        const next = products.map((p) => (p.id === selectedProduct.id ? mapped : p));
+        setProducts(next);
+        setAlerts(buildAlertsFromProducts(next));
+      } else {
+        const created = await createProduct({
+          name: productData.name,
+          price: productData.price,
+          categoryId: category.categoryId,
+          productStatusId: 1,
+          initialStock: productData.stock,
+          imageUrl: productData.imageUrl || undefined,
+        });
+        const mapped = mapApiProductToDashboard(created);
+        mapped.stock = created.stock;
+        mapped.minStock = productData.minStock;
+        mapped.status =
+          mapped.stock === 0
+            ? 'out_of_stock'
+            : mapped.stock <= mapped.minStock
+              ? 'critical'
+              : 'active';
+        const next = [...products, mapped];
+        setProducts(next);
+        setAlerts(buildAlertsFromProducts(next));
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error('Error guardando producto:', err);
+      setProductsError('No se pudo guardar el producto.');
     }
-    setIsModalOpen(false);
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -451,50 +573,26 @@ export const DashboardPage = () => {
 
   return (
     <div className="min-h-screen bg-[#0d1117] p-6 font-mono">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white uppercase tracking-wider">
-              Panel de Control <span className="text-[#00ece0]">//</span> Dashboard
-            </h1>
-            <p className="text-gray-500 text-xs mt-1 uppercase tracking-widest">
-              Sistema de Gestión de Inventario v2.4.1
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="px-3 py-1.5 bg-[#16191b] border border-gray-800">
-              <span className="text-gray-500 text-xs uppercase tracking-wider">Rol:</span>
-              <span className={`ml-2 text-xs font-bold uppercase ${
-                isAdmin ? 'text-[#ff4655]' : 'text-[#00ece0]'
-              }`}>
-                {isAdmin ? 'Admin' : 'Asesor'}
-              </span>
-            </div>
-            {isReadOnly && (
-              <div className="px-3 py-1.5 bg-[#ff4655]/10 border border-[#ff4655]/30 flex items-center gap-2">
-                <Lock className="w-3 h-3 text-[#ff4655]" />
-                <span className="text-[#ff4655] text-xs font-bold uppercase tracking-wider">
-                  Solo Lectura
-                </span>
-              </div>
-            )}
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 text-zinc-400 hover:text-red-500 hover:bg-red-500/10 text-[10px] font-mono uppercase tracking-wider transition-all rounded"
-            >
-              <LogOut className="w-4 h-4" />
-              Cerrar Sesión
-            </button>
-          </div>
-        </div>
-
+      <StaffHeader
+        title={
+          <>
+            Panel de Control <span className="text-[#00ece0]">//</span> Dashboard
+          </>
+        }
+        subtitle="Sistema de Gestión de Inventario v2.4.1"
+        showReadOnly
+      >
         {metricsError && (
           <div className="mt-2 px-3 py-2 bg-[#ff4655]/10 border border-[#ff4655]/30 text-[#ff4655] text-xs">
             {metricsError}
           </div>
         )}
-      </div>
+        {productsError && (
+          <div className="mt-2 px-3 py-2 bg-[#ff4655]/10 border border-[#ff4655]/30 text-[#ff4655] text-xs">
+            {productsError}
+          </div>
+        )}
+      </StaffHeader>
 
       {/* Métricas Tácticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -680,7 +778,70 @@ export const DashboardPage = () => {
         </div>
       )}
 
-      {/* Tabla de Inventario (aún mock — pendiente de conectar a productApi) */}
+      {/* Movimientos recientes */}
+      <div className="mb-8 bg-[#16191b] border border-gray-800 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+            <History className="w-4 h-4 text-[#00ece0]" />
+            Movimientos recientes
+          </h2>
+          <button
+            onClick={() => navigate('/movimientos')}
+            className="text-[10px] uppercase tracking-wider text-zinc-400 hover:text-[#00ece0] transition-colors"
+          >
+            Ver todos
+          </button>
+        </div>
+        {loadingMovements ? (
+          <p className="text-gray-500 text-xs">Cargando...</p>
+        ) : recentMovements.length === 0 ? (
+          <p className="text-gray-500 text-xs">Sin movimientos registrados.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-500 uppercase tracking-wider border-b border-gray-800">
+                  <th className="text-left pb-2 font-mono">Fecha</th>
+                  <th className="text-left pb-2 font-mono">Producto</th>
+                  <th className="text-left pb-2 font-mono">Tipo</th>
+                  <th className="text-right pb-2 font-mono">Cant.</th>
+                  <th className="text-left pb-2 font-mono">Motivo</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-300">
+                {recentMovements.map((m) => (
+                  <tr key={m.movementId} className="border-b border-gray-800/40">
+                    <td className="py-2 font-mono text-[10px] text-gray-400">
+                      {new Date(m.createdAt).toLocaleString('es-CO', {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      })}
+                    </td>
+                    <td className="py-2">{m.productName || `Inv #${m.inventoryId}`}</td>
+                    <td
+                      className={`py-2 ${
+                        m.movementTypeName.toLowerCase().includes('entrada')
+                          ? 'text-[#00ece0]'
+                          : m.movementTypeName.toLowerCase().includes('salida')
+                            ? 'text-[#ff4655]'
+                            : 'text-amber-400'
+                      }`}
+                    >
+                      {m.movementTypeName || '—'}
+                    </td>
+                    <td className="py-2 text-right font-mono">{m.quantity}</td>
+                    <td className="py-2 text-gray-400 truncate max-w-[200px]">
+                      {m.reason || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Tabla de Inventario */}
       <div className="bg-[#16191b] border border-gray-800 p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-white text-sm font-bold uppercase tracking-wider flex items-center gap-2">
@@ -727,12 +888,9 @@ export const DashboardPage = () => {
             className="px-4 py-2 bg-[#0d1117] border border-gray-700 text-white text-sm focus:outline-none focus:border-[#00ece0] font-mono"
           >
             <option value="all">Todas las Categorías</option>
-            <option value="GPU">GPU</option>
-            <option value="CPU">CPU</option>
-            <option value="RAM">RAM</option>
-            <option value="Storage">Storage</option>
-            <option value="Motherboard">Motherboard</option>
-            <option value="PSU">PSU</option>
+            {categoryNames.map((cat) => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
           </select>
         </div>
 
@@ -751,7 +909,12 @@ export const DashboardPage = () => {
               </tr>
             </thead>
             <tbody className="text-gray-300">
-              {filteredProducts.map((product) => (
+              {loadingProducts ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-gray-500">Cargando productos...</td>
+                </tr>
+              ) : (
+                filteredProducts.map((product) => (
                 <tr key={product.id} className="border-b border-gray-800/50 hover:bg-[#0d1117]/50 transition-colors">
                   <td className="py-3 font-mono text-[#00ece0]">{product.id}</td>
                   <td className="py-3 font-semibold">{product.name}</td>
@@ -808,12 +971,13 @@ export const DashboardPage = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
-        {filteredProducts.length === 0 && (
+        {!loadingProducts && filteredProducts.length === 0 && (
           <div className="text-center py-12 text-gray-500 text-sm">
             No se encontraron productos que coincidan con los filtros.
           </div>
@@ -827,6 +991,7 @@ export const DashboardPage = () => {
         product={selectedProduct}
         onSave={handleSaveProduct}
         isReadOnly={isReadOnly}
+        categories={categoryNames}
       />
     </div>
   );

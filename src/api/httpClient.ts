@@ -15,6 +15,9 @@ httpClient.interceptors.request.use((config) => {
 
 httpClient.interceptors.response.use(
   (response) => {
+    if (response.config.responseType === "blob") {
+      return response;
+    }
     if (response.data && typeof response.data === "object" && "data" in response.data) {
       response.data = response.data.data;
     }

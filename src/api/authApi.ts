@@ -1,5 +1,4 @@
 import httpClient from "./httpClient";
-import type { UserProfile } from "../context/AuthContext";
 
 export interface LoginRequest {
   email: string;
@@ -14,6 +13,8 @@ export interface RegisterRequest {
 
 export interface AuthResponse {
   token: string;
+  userId: number;
+  customerId: number | null;
   name: string;
   email: string;
   role: string;
