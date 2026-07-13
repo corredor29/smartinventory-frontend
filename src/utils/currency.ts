@@ -15,3 +15,26 @@ export function fmtDate(iso: string) {
     minute: '2-digit',
   });
 }
+
+/**
+ * ==============================================================
+ * ARCHIVO: currency.ts
+ * UBICACIÓN: src/utils/currency.ts
+ * ==============================================================
+ *
+ * PROPÓSITO
+ *
+ * Este archivo contiene funciones utilitarias encargadas de
+ * dar formato a valores numéricos y fechas antes de mostrarlos
+ * en la interfaz de usuario.
+ *
+ * Centralizar estas funciones evita repetir código en múltiples
+ * componentes y garantiza que toda la aplicación muestre la
+ * información con el mismo formato.
+ *
+ * Actualmente el archivo proporciona dos utilidades:
+ *
+ * • fmtCurrency()
+ * • fmtDate()
+ *
+ * ====== */
