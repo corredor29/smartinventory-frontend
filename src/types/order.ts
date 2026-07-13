@@ -29,3 +29,35 @@ export interface Order {
   contactPhone?: string | null;
   contactDocument?: string | null;
 }
+
+/**
+ * ==============================================================
+ * ARCHIVO: order.ts
+ * UBICACIÓN: src/types/order.ts
+ * ==============================================================
+ *
+ * PROPÓSITO
+ *
+ * Este archivo define todos los tipos e interfaces utilizados
+ * para representar una orden de compra dentro del sistema
+ * SmartInventory.
+ *
+ * Las interfaces aquí definidas permiten que TypeScript valide
+ * automáticamente la estructura de los pedidos utilizados en
+ * toda la aplicación.
+ *
+ * Gracias a ello se reduce la posibilidad de errores al
+ * manipular información relacionada con compras, facturas,
+ * productos y métodos de pago.
+ *
+ * ==============================================================
+ *
+ * ELEMENTOS DEFINIDOS
+ *
+ * • PaymentMethod
+ * • OrderStatus
+ * • OrderLineItem
+ * • Order
+ *
+ * ==============================================================
+ */
