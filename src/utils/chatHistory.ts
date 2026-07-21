@@ -21,6 +21,8 @@ export interface ClientChatMessage {
   timestamp: string;
   senderLabel?: string;
   kind?: ChatMessageKind;
+  /** Productos sugeridos del picker (se persisten al cerrar el chat). */
+  products?: ChatUiProduct[];
   product?: ChatUiProduct;
   checkout?: {
     productId: string;
@@ -60,8 +62,8 @@ export function loadStoredMessages(): ClientChatMessage[] {
 
 export function saveStoredMessages(messages: ClientChatMessage[]) {
   try {
-    // No persistir pickers abiertos (se regeneran); sí checkout/invoice/text
-    const toStore = messages.filter((m) => m.kind !== 'products');
+    // Persistir texto, productos sugeridos, checkout e invoices
+    const toStore = messages.filter((m) => m.kind !== 'checkout' || !!m.checkout);
     localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(toStore.slice(-80)));
   } catch {
     // ignore quota

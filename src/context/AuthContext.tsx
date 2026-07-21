@@ -30,6 +30,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function clearClientChatStorage() {
   localStorage.removeItem(CHAT_SESSION_KEY);
+  localStorage.removeItem('smart_inventory_chatbot_page_messages');
   clearStoredMessages();
 }
 

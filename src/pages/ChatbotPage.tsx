@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, LogOut, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { sendChatMessage } from '../api/chatApi';
-import { resolveProductImageUrl } from '../api/productApi';
+import { sendChatMessage, getChatSessionMessages } from '../api/chatApi';
+import { resolveProductImageUrl, searchProducts } from '../api/productApi';
 import {
   startChatConnection,
   stopChatConnection,
@@ -16,14 +16,63 @@ import {
 import { ChatWindow } from '../components/chat/ChatWindow';
 import type { ChatBubbleMessage } from '../components/chat/MessageBubble';
 import type { ChatUiProduct } from '../utils/chatHistory';
+import { formatChatTime } from '../utils/chatHistory';
 import axios from 'axios';
 import { getCustomerIdFromToken } from '../utils/jwt';
+import { extractSearchQuery, formatFoundProductsMessage, refineProductsByQuery, sanitizeBotText } from '../utils/chatText';
 
 const SESSION_STORAGE_KEY = 'smart_inventory_chat_session';
+const MESSAGES_STORAGE_KEY = 'smart_inventory_chatbot_page_messages';
 
 function formatTime(date: Date | string = new Date()) {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  return formatChatTime(date);
+}
+
+function welcomeBubble(): ChatBubbleMessage {
+  return {
+    id: 'welcome',
+    content: '¡Hola! Soy Killjoy, tu asistente táctico. ¿En qué puedo ayudarte hoy?',
+    isUser: false,
+    timestamp: formatTime(),
+    senderLabel: 'Killjoy Bot',
+  };
+}
+
+function loadLocalMessages(): ChatBubbleMessage[] {
+  try {
+    const raw = localStorage.getItem(MESSAGES_STORAGE_KEY);
+    if (!raw) return [welcomeBubble()];
+    const parsed = JSON.parse(raw) as ChatBubbleMessage[];
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [welcomeBubble()];
+  } catch {
+    return [welcomeBubble()];
+  }
+}
+
+function saveLocalMessages(messages: ChatBubbleMessage[]) {
+  try {
+    localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages.slice(-100)));
+  } catch {
+    // ignore quota
+  }
+}
+
+function clearLocalChat() {
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+  localStorage.removeItem(MESSAGES_STORAGE_KEY);
+}
+
+function serverToBubble(msg: ChatMessageDto): ChatBubbleMessage {
+  const lower = (msg.senderTypeName || '').toLowerCase();
+  const isUser = lower.includes('cliente');
+  const isAdvisor = lower.includes('asesor');
+  return {
+    id: String(msg.chatMessageId),
+    content: msg.content,
+    isUser,
+    timestamp: formatTime(msg.sentAt),
+    senderLabel: isUser ? undefined : isAdvisor ? 'Asesor' : msg.senderTypeName || 'Bot',
+  };
 }
 
 function stateLabel(state: string): { text: string; color: string } {
@@ -73,15 +122,7 @@ export const ChatbotPage = () => {
   const [sessionId, setSessionId] = useState<string>(() => {
     return localStorage.getItem(SESSION_STORAGE_KEY) || '';
   });
-  const [messages, setMessages] = useState<ChatBubbleMessage[]>([
-    {
-      id: 'welcome',
-      content: '¡Hola! Soy Killjoy, tu asistente táctico. ¿En qué puedo ayudarte hoy?',
-      isUser: false,
-      timestamp: formatTime(),
-      senderLabel: 'Killjoy Bot',
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatBubbleMessage[]>(() => loadLocalMessages());
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +131,37 @@ export const ChatbotPage = () => {
   const sendingRef = useRef(false);
   const wasAuthenticated = useRef(isAuthenticated);
   const lastUserId = useRef<string | null>(user?.id ?? null);
+  const historyLoadedRef = useRef(false);
+
+  // Persistir mensajes localmente
+  useEffect(() => {
+    saveLocalMessages(messages);
+  }, [messages]);
+
+  // Restaurar historial del servidor al tener sessionId
+  useEffect(() => {
+    if (!sessionId || historyLoadedRef.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const serverMsgs = await getChatSessionMessages(sessionId);
+        if (cancelled || !serverMsgs?.length) return;
+        const bubbles = serverMsgs.map(serverToBubble);
+        setMessages((prev) => {
+          // Si solo hay welcome o menos mensajes locales que en servidor, usar servidor
+          const meaningful = prev.filter((m) => m.id !== 'welcome');
+          if (meaningful.length >= bubbles.length) return prev;
+          return bubbles.length > 0 ? bubbles : prev;
+        });
+        historyLoadedRef.current = true;
+      } catch {
+        // sin historial remoto (anon / 404): se queda el local
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   // Al cerrar sesión o cambiar de cuenta: limpiar historial de esta página
   useEffect(() => {
@@ -98,21 +170,14 @@ export const ChatbotPage = () => {
       !!lastUserId.current && !!user?.id && lastUserId.current !== user.id;
 
     if (loggedOut || switchedAccount) {
-      localStorage.removeItem(SESSION_STORAGE_KEY);
+      clearLocalChat();
+      historyLoadedRef.current = false;
       setSessionId('');
       setChatState('IN_PROGRESS');
       setError(null);
       setInputValue('');
       setSignalRConnected(false);
-      setMessages([
-        {
-          id: 'welcome',
-          content: '¡Hola! Soy Killjoy, tu asistente táctico. ¿En qué puedo ayudarte hoy?',
-          isUser: false,
-          timestamp: formatTime(),
-          senderLabel: 'Killjoy Bot',
-        },
-      ]);
+      setMessages([welcomeBubble()]);
       stopChatConnection().catch(() => undefined);
     }
 
@@ -126,19 +191,12 @@ export const ChatbotPage = () => {
   };
 
   const handleNewConversation = () => {
-    localStorage.removeItem(SESSION_STORAGE_KEY);
+    clearLocalChat();
+    historyLoadedRef.current = false;
     setSessionId('');
     setChatState('IN_PROGRESS');
     setError(null);
-    setMessages([
-      {
-        id: 'welcome',
-        content: '¡Hola! Soy Killjoy, tu asistente táctico. ¿En qué puedo ayudarte hoy?',
-        isUser: false,
-        timestamp: formatTime(),
-        senderLabel: 'Killjoy Bot',
-      },
-    ]);
+    setMessages([welcomeBubble()]);
   };
 
   useEffect(() => {
@@ -228,17 +286,27 @@ export const ChatbotPage = () => {
 
         setChatState(result.state);
 
+        const queryHint = extractSearchQuery(text);
+        let productsFromBot = result.products ?? [];
+        if (productsFromBot.length > 0 && queryHint) {
+          productsFromBot = refineProductsByQuery(productsFromBot, queryHint);
+        }
+        const hasProducts = productsFromBot.length > 0;
+
         const botMsg: ChatBubbleMessage = {
           id: `bot-${Date.now()}`,
-          content: result.response,
+          content:
+            hasProducts && queryHint
+              ? formatFoundProductsMessage(productsFromBot.length, queryHint)
+              : sanitizeBotText(result.response || '', { hasProducts }),
           isUser: false,
           timestamp: formatTime(),
           senderLabel: 'Killjoy Bot',
         };
         setMessages((prev) => [...prev, botMsg]);
 
-        if (result.products && result.products.length > 0) {
-          const seeded: ChatUiProduct[] = result.products.map((p) => ({
+        if (hasProducts) {
+          const seeded: ChatUiProduct[] = productsFromBot.map((p) => ({
             id: String(p.productId),
             name: p.name,
             price: p.price,
@@ -256,6 +324,47 @@ export const ChatbotPage = () => {
               products: seeded,
             },
           ]);
+        } else {
+          // Fallback cliente: frases naturales sin products del bot
+          const query = queryHint || extractSearchQuery(text);
+          if (query) {
+            try {
+              const found = refineProductsByQuery(await searchProducts(query), query);
+              if (found.length > 0) {
+                const seeded: ChatUiProduct[] = found.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  price: p.price,
+                  stock: p.stock,
+                  image: resolveProductImageUrl(p.image),
+                  category: p.category,
+                }));
+                const successLine = formatFoundProductsMessage(seeded.length, query);
+                setMessages((prev) => {
+                  const next = [...prev];
+                  for (let i = next.length - 1; i >= 0; i -= 1) {
+                    const m = next[i];
+                    if (!m.isUser && !m.products) {
+                      next[i] = { ...m, content: successLine };
+                      break;
+                    }
+                  }
+                  return [
+                    ...next,
+                    {
+                      id: `products-${Date.now()}`,
+                      content: '',
+                      isUser: false,
+                      timestamp: formatTime(),
+                      products: seeded,
+                    },
+                  ];
+                });
+              }
+            } catch {
+              // ignore search fallback errors
+            }
+          }
         }
 
         if (result.invoiceNumber) {

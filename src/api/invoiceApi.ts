@@ -2,6 +2,8 @@ import httpClient from "./httpClient";
 
 export interface InvoiceItemDto {
   productName: string;
+  imageUrl?: string | null;
+  categoryName?: string | null;
   quantity: number;
   unitPrice: number;
   subtotal: number;

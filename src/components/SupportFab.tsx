@@ -5,7 +5,7 @@ import { sendChatMessage, getChatSessionMessages } from '../api/chatApi';
 import { createEscalation } from '../api/chatEscalationApi';
 import { createSale } from '../api/saleApi';
 import { getMyCustomer } from '../api/customerApi';
-import { resolveProductImageUrl } from '../api/productApi';
+import { resolveProductImageUrl, searchProducts } from '../api/productApi';
 import {
   startChatConnection,
   joinSession,
@@ -19,6 +19,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { getCustomerIdFromToken } from '../utils/jwt';
 import { fmtCurrency } from '../utils/currency';
+import { extractSearchQuery, formatFoundProductsMessage, refineProductsByQuery, sanitizeBotText, splitBoldSegments } from '../utils/chatText';
 import {
   CHAT_SESSION_KEY,
   loadStoredMessages,
@@ -83,6 +84,28 @@ function isPurchaseIntent(text: string): boolean {
   );
 }
 
+/** Solo abre el catálogo vacío si NO hay marca/producto en el mensaje. */
+function isBarePurchaseIntent(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  if (t === BUY_QUICK.toLowerCase()) return true;
+  if (!isPurchaseIntent(t)) return false;
+
+  const stop = new Set([
+    'me', 'mi', 'mis', 'gustaria', 'gustaría', 'quisiera', 'quiero', 'busco', 'necesito',
+    'un', 'una', 'unos', 'unas', 'el', 'la', 'los', 'las', 'de', 'del', 'para', 'por',
+    'favor', 'porfavor', 'hola', 'buenas', 'comprar', 'compra', 'producto', 'productos',
+    'pedir', 'hacer', 'realizar', 'armar', 'pedido', 'algo', 'eso', 'este', 'esta',
+  ]);
+  const tokens = t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+  const meaningful = tokens.filter((tok) => tok.length >= 3 && !stop.has(tok));
+  return meaningful.length === 0;
+}
+
 function isAffirmative(text: string): boolean {
   const t = text.toLowerCase().trim();
   return ['si', 'sí', 'dale', 'ok', 'okay', 'claro', 'por favor', 'confirmo', 'yes'].includes(t);
@@ -106,7 +129,11 @@ export const SupportFab = () => {
   });
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [chatCart, setChatCart] = useState<CheckoutCartItem[]>([]);
-  const [pickerSeed, setPickerSeed] = useState<ChatUiProduct[] | undefined>(undefined);
+  const [pickerSeed, setPickerSeed] = useState<ChatUiProduct[] | undefined>(() => {
+    const stored = loadStoredMessages();
+    const lastPicker = [...stored].reverse().find((m) => m.kind === 'products' && m.products?.length);
+    return lastPicker?.products;
+  });
   const [profilePrefill, setProfilePrefill] = useState({
     name: '',
     phone: '',
@@ -319,7 +346,8 @@ export const SupportFab = () => {
   }, [chatState, sessionId, isAuthenticated]);
 
   const openProductPicker = useCallback((seed?: ChatUiProduct[]) => {
-    setPickerSeed(seed && seed.length > 0 ? seed : undefined);
+    const products = seed && seed.length > 0 ? seed : undefined;
+    setPickerSeed(products);
     setMessages((prev) => {
       const withoutPicker = prev.filter((m) => m.kind !== 'products');
       return [
@@ -331,6 +359,7 @@ export const SupportFab = () => {
           timestamp: formatChatTime(),
           senderLabel: 'Pedido',
           kind: 'products',
+          products,
         },
       ];
     });
@@ -591,7 +620,7 @@ export const SupportFab = () => {
     async (text: string) => {
       if (!text.trim() || sending) return;
 
-      if (isPurchaseIntent(text) && chatState !== 'WAITING_HUMAN_AGENT') {
+      if (isBarePurchaseIntent(text) && chatState !== 'WAITING_HUMAN_AGENT') {
         setMessages((prev) => [
           ...prev,
           { id: `temp-${Date.now()}`, text, isUser: true, timestamp: formatChatTime(), kind: 'text' },
@@ -655,11 +684,22 @@ export const SupportFab = () => {
 
         setChatState(result.state);
 
+        const queryHint = extractSearchQuery(text);
+        let productsFromBot = result.products ?? [];
+        if (productsFromBot.length > 0 && queryHint) {
+          productsFromBot = refineProductsByQuery(productsFromBot, queryHint);
+        }
+        const hasProducts = productsFromBot.length > 0;
+
+        const botText = hasProducts && queryHint
+          ? formatFoundProductsMessage(productsFromBot.length, queryHint)
+          : sanitizeBotText(result.response || '', { hasProducts });
+
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now() + 1,
-            text: result.response,
+            text: botText,
             isUser: false,
             timestamp: formatChatTime(),
             senderLabel: 'Killjoy Bot',
@@ -683,8 +723,8 @@ export const SupportFab = () => {
         }
 
         // Productos estructurados del bot → tarjetas
-        if (result.products && result.products.length > 0) {
-          const seeded: ChatUiProduct[] = result.products.map((p) => ({
+        if (hasProducts) {
+          const seeded: ChatUiProduct[] = productsFromBot.map((p) => ({
             id: String(p.productId),
             name: p.name,
             price: p.price,
@@ -694,12 +734,59 @@ export const SupportFab = () => {
           }));
           openProductPicker(seeded);
         } else {
-          const reply = (result.response || '').toLowerCase();
-          if (
-            (reply.includes('producto') || reply.includes('comprar') || reply.includes('stock')) &&
-            (reply.includes('¿') || reply.includes('quieres') || reply.includes('te interesa'))
-          ) {
-            openProductPicker();
+          // Fallback cliente: frases naturales ("quiero el lenovo...") sin products del bot
+          const query = queryHint || extractSearchQuery(text);
+          let seededFromClient = false;
+          if (query) {
+            try {
+              const found = refineProductsByQuery(await searchProducts(query), query);
+              if (found.length > 0) {
+                const seeded: ChatUiProduct[] = found.map((p) => ({
+                  id: p.id,
+                  name: p.name,
+                  price: p.price,
+                  stock: p.stock,
+                  image: resolveProductImageUrl(p.image),
+                  category: p.category,
+                }));
+                const successLine = formatFoundProductsMessage(seeded.length, query);
+                setMessages((prev) => {
+                  const next = [...prev];
+                  for (let i = next.length - 1; i >= 0; i -= 1) {
+                    const m = next[i];
+                    if (!m.isUser && m.kind === 'text') {
+                      next[i] = { ...m, text: successLine };
+                      return next;
+                    }
+                  }
+                  return [
+                    ...next,
+                    {
+                      id: Date.now() + 11,
+                      text: successLine,
+                      isUser: false,
+                      timestamp: formatChatTime(),
+                      senderLabel: 'Killjoy Bot',
+                      kind: 'text',
+                    },
+                  ];
+                });
+                openProductPicker(seeded);
+                seededFromClient = true;
+              }
+            } catch {
+              // ignore search fallback errors
+            }
+          }
+
+          if (!seededFromClient) {
+            const reply = (result.response || '').toLowerCase();
+            if (
+              (reply.includes('producto') || reply.includes('comprar') || reply.includes('stock')) &&
+              (reply.includes('¿') || reply.includes('quieres') || reply.includes('te interesa'))
+            ) {
+              openProductPicker();
+            }
           }
         }
 
@@ -784,11 +871,12 @@ export const SupportFab = () => {
 
   const renderMessage = (msg: ClientChatMessage) => {
     if (msg.kind === 'products') {
+      const seed = msg.products?.length ? msg.products : pickerSeed;
       return (
         <div key={msg.id} className="flex justify-start">
           <div className="w-full max-w-[95%]">
             <ChatProductPicker
-              initialProducts={pickerSeed}
+              initialProducts={seed}
               cartCount={chatCart.length}
               onAdd={handleAddToCart}
               onCheckout={openCheckoutFromCart}
@@ -864,10 +952,17 @@ export const SupportFab = () => {
 
     if (!msg.text.trim()) return null;
 
+    const bodyText = msg.isUser
+      ? msg.text
+      : sanitizeBotText(msg.text);
+    const segments = msg.isUser
+      ? [{ bold: false, text: bodyText }]
+      : splitBoldSegments(bodyText);
+
     return (
       <div key={msg.id} className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}>
         <div
-          className={`max-w-[80%] px-3 py-2 text-xs ${
+          className={`max-w-[80%] min-w-0 overflow-hidden px-3 py-2 text-xs ${
             msg.isUser
               ? 'bg-[#ff4655] text-white'
               : 'bg-[#16191b] border border-gray-700 text-gray-300'
@@ -876,7 +971,17 @@ export const SupportFab = () => {
           {msg.senderLabel && (
             <p className="text-[9px] text-[#00ece0] mb-0.5 font-mono uppercase">{msg.senderLabel}</p>
           )}
-          <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+          <p className="leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+            {segments.map((seg, i) =>
+              seg.bold ? (
+                <strong key={i} className="font-semibold text-white">
+                  {seg.text}
+                </strong>
+              ) : (
+                <span key={i}>{seg.text}</span>
+              )
+            )}
+          </p>
           <p className="text-[9px] mt-1 opacity-60 font-mono">{msg.timestamp}</p>
         </div>
       </div>
