@@ -58,8 +58,8 @@ export function mapInvoiceToOrder(invoice: InvoiceDto, userId: string): Order {
   const items = invoice.items.map((item, index) => ({
     productId: `inv-${invoice.invoiceId}-${index}`,
     productName: item.productName,
-    category: '—',
-    image: FALLBACK_IMAGE,
+    category: item.categoryName?.trim() || '—',
+    image: resolveProductImageUrl(item.imageUrl) || FALLBACK_IMAGE,
     unitPrice: Number(item.unitPrice),
     quantity: item.quantity,
   }));

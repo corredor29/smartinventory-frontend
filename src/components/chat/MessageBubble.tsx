@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ChatUiProduct } from '../../utils/chatHistory';
+import { sanitizeBotText, splitBoldSegments } from '../../utils/chatText';
 
 export type ChatSenderRole = 'cliente' | 'bot' | 'asesor';
 
@@ -19,6 +20,24 @@ interface MessageBubbleProps {
   message: ChatBubbleMessage;
   /** Vista del asesor: cliente a la izquierda, bot/asesor a la derecha estilo chat */
   perspective?: 'client' | 'advisor';
+}
+
+function BubbleBody({ raw, isUser }: { raw: string; isUser: boolean }) {
+  const text = isUser ? raw : sanitizeBotText(raw);
+  const segments = isUser ? [{ bold: false, text }] : splitBoldSegments(text);
+  return (
+    <p className="leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+      {segments.map((seg, i) =>
+        seg.bold ? (
+          <strong key={i} className="font-semibold text-white">
+            {seg.text}
+          </strong>
+        ) : (
+          <React.Fragment key={i}>{seg.text}</React.Fragment>
+        )
+      )}
+    </p>
+  );
 }
 
 function resolveRole(message: ChatBubbleMessage): ChatSenderRole {
@@ -59,11 +78,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div className={`flex ${alignEnd ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[78%] px-3 py-2 text-xs ${bubbleClass}`}>
+      <div className={`max-w-[78%] min-w-0 overflow-hidden px-3 py-2 text-xs ${bubbleClass}`}>
         <p className={`text-[9px] font-mono uppercase tracking-wider mb-1 ${labelClass}`}>
           {label}
         </p>
-        <p className="leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        <BubbleBody raw={message.content} isUser={role === 'cliente'} />
         <p className="text-[9px] mt-1 opacity-60 font-mono">{message.timestamp}</p>
       </div>
     </div>
